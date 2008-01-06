@@ -59,7 +59,7 @@
   (save-excursion
     (set-buffer buffer)
     (erase-buffer)
-    (insert "-*- mode: ruby-test -*-\n\n")
+;    (insert "-*- mode: ruby-test -*-\n\n")
     (let ((proc (start-process "ruby-test" buffer command-string file)))
       (set-process-sentinel proc 'runner-sentinel)))
   (message (format "%s '%s' done." (capitalize category) file)))
@@ -92,7 +92,7 @@
 				     (lambda (win-name) (buffer-file-name (window-buffer win-name)))
 				     (window-list))))))
 		       (if (boundp 'last-run-test-file)
-			   (nconc files '(last-run-test-file)))
+			   (nconc files (list last-run-test-file)))
 		       (mapcar 'message files)
 		       (select 'identity files))))))
 
@@ -109,7 +109,7 @@
 
 (defvar ruby-test-font-lock-keywords
   (list 
-   '("^\\(\\(.*\\):\\([0-9]+\\)\\):" 1 font-lock-warning-face)
+   '("^\\(\\(.*\\):\\([0-9]+\\)\\):" 1 font-lock-keyword-face)
    ))
 
 (defun ruby-test-mode ()

@@ -1,7 +1,7 @@
 ;; ruby-test.el
 ;; Caspar Florian Ebeling <florian.ebeling@gmail.com>, 2007-12-06
 ;; This software can be redistributed. GPL v2 applies.
-
+ 
 ;; todo
 ;;   - color for ok/fail
 ;;   - run single test method
@@ -58,10 +58,12 @@
   (setq last-run-test-file file)
   (save-excursion
     (set-buffer buffer)
-    (erase-buffer)
-;    (insert "-*- mode: ruby-test -*-\n\n")
-    (let ((proc (start-process "ruby-test" buffer command-string file)))
-      (set-process-sentinel proc 'runner-sentinel)))
+    (setq buffer-read-only t)
+    (let ((buffer-read-only nil))
+      (erase-buffer)
+      (set-auto-mode-0 'ruby-test-mode 'keep-if-same)
+      (let ((proc (start-process "ruby-test" buffer command-string file)))
+	(set-process-sentinel proc 'runner-sentinel))))
   (message (format "%s '%s' done." (capitalize category) file)))
 
 (defun runner-sentinel (process event)
@@ -107,16 +109,50 @@
 	(run-test-file test-file ruby-test-buffer)
       (message "No test among visible buffers or run earlier."))))
 
+;; 	`(face nil
+;; 	  message ,(list (list nil nil nil dst) 2)
+;; 	  help-echo "mouse-2: visit the source location"
+;; 	  keymap compilation-button-map
+;; 	  mouse-face highlight)
+
+;;      ("^Compilation \\(finished\\).*"
+;;       (0 '(face nil message nil help-echo nil mouse-face nil) t)
+;;       (1 compilation-info-face))
+
+(defvar ruby-test-backtrace-key-map 
+  "The keymap which is bound to marked trace frames.")
+
+(defun ruby-test-goto-location (event)
+  (message "HIT ENTRY! %S" event))
+
+(defun ruby-test-goto-location-by-ret ()
+  (interactive)
+  (message "GOTO HIT %S" (point)))
+
+(setq ruby-test-backtrace-key-map
+      (make-sparse-keymap))
+(define-key ruby-test-backtrace-key-map "\r"
+  'ruby-test-goto-location)
+
+(defvar ruby-test-mode-map nil)
+(setq ruby-test-mode-map (make-sparse-keymap))
+(define-key ruby-test-mode-map "\r" 'ruby-test-goto-location-by-ret)
+
 (defvar ruby-test-font-lock-keywords
   (list 
-   '("^\\(\\(.*\\):\\([0-9]+\\)\\):" 1 font-lock-keyword-face)
-   ))
+   '("^\\(\\(.*\\):\\([0-9]+\\)\\):" 1 
+     '(face font-lock-keyword-face 
+	    message nil 
+	    help-echo "RET to visit location"
+	    keymap ruby-test-backtrace-key-map)
+   )))
 
 (defun ruby-test-mode ()
   "Major mode for running ruby tests and display results."
   (interactive)
   (kill-all-local-variables)
-;;  (use-local-map ruby-test-mode-map)
+  (use-local-map ruby-test-mode-map)
+  (make-local-variable 'view-read-only)
   (set (make-local-variable 'font-lock-defaults) '((ruby-test-font-lock-keywords) nil nil))
   (set (make-local-variable 'font-lock-keywords) 'ruby-test-font-lock-keywords)
 ;;  (set (make-local-variable 'indent-line-function) 'ruby-test-indent-line) 

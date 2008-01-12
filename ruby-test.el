@@ -24,7 +24,10 @@
 (defvar ruby-path "/opt/local/bin/ruby" 
   "Set the ruby binary to be used.")
 
-(defvar spec-path nil 
+(defvar ruby-test-spec-args '("-Dc" "--backtrace" "-c") 
+  "")
+
+(defvar spec-path "/opt/local/bin/spec";nil 
   "Set the spec exectable to be used.")
 
 (defvar ruby-test-buffer)
@@ -62,7 +65,7 @@
     (let ((buffer-read-only nil))
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode 'keep-if-same)
-      (let ((proc (start-process "ruby-test" buffer command-string file)))
+      (let ((proc (start-process "ruby-test" buffer command-string "-Dbc" file)))
 	(set-process-sentinel proc 'runner-sentinel))))
   (message (format "%s '%s' done." (capitalize category) file)))
 
@@ -73,7 +76,7 @@
     ))
 
 (defun run-spec (file buffer)
-  (invoke-test-file spec-binary "spec -Dc -c" file buffer))
+  (invoke-test-file spec-binary "spec" file buffer))
 
 (defun run-test (file buffer)
   (invoke-test-file ruby-binary "unit test" file buffer))

@@ -65,7 +65,7 @@
     (let ((buffer-read-only nil))
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode 'keep-if-same)
-      (let ((proc (start-process "ruby-test" buffer command-string "-Dbc" file)))
+      (let ((proc (start-process "ruby-test" buffer command-string "-D" "-b" file)))
 	(set-process-sentinel proc 'runner-sentinel))))
   (message (format "%s '%s' done." (capitalize category) file)))
 

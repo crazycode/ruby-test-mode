@@ -21,13 +21,10 @@
 
 (defvar last-run-test-file)
 
-(defvar ruby-path "/opt/local/bin/ruby" 
+(defvar ruby-test-ruby-executable "/opt/local/bin/ruby" 
   "Set the ruby binary to be used.")
 
-(defvar ruby-test-spec-args '("-Dc" "--backtrace" "-c") 
-  "")
-
-(defvar spec-path "/opt/local/bin/spec";nil 
+(defvar ruby-test-spec-executable "/opt/local/bin/spec"
   "Set the spec exectable to be used.")
 
 (defvar ruby-test-buffer)
@@ -65,7 +62,7 @@
     (let ((buffer-read-only nil))
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode 'keep-if-same)
-      (let ((proc (start-process "ruby-test" buffer command-string "-D" "-b" file)))
+      (let ((proc (start-process "ruby-test" buffer command-string  file)))
 	(set-process-sentinel proc 'runner-sentinel))))
   (message (format "%s '%s' done." (capitalize category) file)))
 
@@ -76,10 +73,19 @@
     ))
 
 (defun run-spec (file buffer)
-  (invoke-test-file spec-binary "spec" file buffer))
+  (let ((spec "spec"))
+    (invoke-test-file 
+     (or ruby-test-spec-executable spec) 
+     spec 
+     file 
+     buffer)))
 
 (defun run-test (file buffer)
-  (invoke-test-file ruby-binary "unit test" file buffer))
+  (invoke-test-file 
+   (or ruby-test-ruby-executable "ruby")
+   "unit test" 
+   file 
+   buffer))
 
 (defun run-test-file (file buffer)
   (cond
@@ -105,9 +111,7 @@
   "Run buffer's file, first visible window file or last-run as ruby test (or spec)."
   (interactive)
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
-  (let ((ruby-binary (or ruby-path "ruby"))
-	(spec-binary (or spec-path "spec"))
-	(test-file (find-ruby-test-file)))
+  (let ((test-file (find-ruby-test-file)))
     (if test-file 
 	(run-test-file test-file ruby-test-buffer)
       (message "No test among visible buffers or run earlier."))))

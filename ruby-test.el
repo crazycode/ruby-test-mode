@@ -130,11 +130,11 @@
   "The keymap which is bound to marked trace frames.")
 
 (defun ruby-test-goto-location (event)
-  (message "HIT ENTRY! %S" event))
+  (message "RUBY-TEST-GOTO-LOCATION, event: %S" event))
 
 (defun ruby-test-goto-location-by-ret ()
   (interactive)
-  (message "GOTO HIT %S" (point)))
+  (message "RUBY-TEST-GOTO-LOCATION-BY-RET %S" (point)))
 
 (setq ruby-test-backtrace-key-map
       (make-sparse-keymap))

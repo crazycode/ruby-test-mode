@@ -5,12 +5,11 @@
 ;; todo
 ;;   - run single test method
 ;;   - use small window for output
-;;   - jump to source from backtrace
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
 
 (defvar ruby-test-mode-hook)
-
+(defvar temp)
 (defvar ruby-test-last-run)
 
 (defvar ruby-test-ruby-executable "/opt/local/bin/ruby" 
@@ -53,7 +52,7 @@
     (setq buffer-read-only t)
     (let ((buffer-read-only nil))
       (erase-buffer)
-      (set-auto-mode-0 'ruby-test-mode 'keep-if-same)
+      (set-auto-mode-0 'ruby-test-mode nil) ;'keep-if-same)
       (let ((proc (start-process "ruby-test" buffer command-string  file)))
 	(set-process-sentinel proc 'ruby-test-runner-sentinel)))))
 
@@ -116,7 +115,13 @@
 
 (defun ruby-test-goto-location ()
   (interactive)
-  (message "RUBY-TEST-GOTO-LOCATION %S" (point)))
+  (set-buffer ruby-test-buffer)
+  (let (alist file-name line-number)
+    (setq alist (get-text-property (point) 'message))
+    (setq file-name (cdr (assoc 'file-name alist)))
+    (setq line-number (cdr (assoc 'line-number alist)))
+    (find-file file-name)
+    (goto-line line-number)))
 
 (setq ruby-test-backtrace-key-map
       (make-sparse-keymap))
@@ -132,8 +137,8 @@
   (list 
    '("^[[:space:]]*\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1 
      `(face font-lock-warning-face 
-	    message '((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
-		      (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
+	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
+		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
 	    follow-link t
 	    underline t
 	    mouse-face highlight

@@ -3,23 +3,15 @@
 ;; This software can be redistributed. GPL v2 applies.
  
 ;; todo
-;;   - color for ok/fail
 ;;   - run single test method
 ;;   - use small window for output
+;;   - jump to source from backtrace
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
 
-;;; template for key map:
-;;(defvar ruby-test-mode-map () 
-;;  "Keymap of commands active in the output buffer.")
-;; (if ruby-test-mode-map
-;;     nil
-;;   (setq ruby-test-mode-map (make-keymap))
-;;   (define-key ruby-test-mode-map ...))
-
 (defvar ruby-test-mode-hook)
 
-(defvar last-run-test-file)
+(defvar ruby-test-last-run)
 
 (defvar ruby-test-ruby-executable "/opt/local/bin/ruby" 
   "Set the ruby binary to be used.")
@@ -55,7 +47,7 @@
 (defun invoke-test-file (command-string category file buffer)
   (message (format "Running %s '%s'..." category file))
   (display-buffer buffer)
-  (setq last-run-test-file file)
+  (setq ruby-test-last-run file)
   (save-excursion
     (set-buffer buffer)
     (setq buffer-read-only t)
@@ -63,14 +55,17 @@
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode 'keep-if-same)
       (let ((proc (start-process "ruby-test" buffer command-string  file)))
-	(set-process-sentinel proc 'runner-sentinel))))
-  (message (format "%s '%s' done." (capitalize category) file)))
+	(set-process-sentinel proc 'ruby-test-runner-sentinel)))))
 
-(defun runner-sentinel (process event)
+(defun ruby-test-runner-sentinel (process event)
   (save-excursion
     (set-buffer ruby-test-buffer)
-;;    (insert (format "[\n%s]" event))
-    ))
+    (cond 
+     ((string= "finished\n" event) (message "Ok"))
+     ((string= "exited abnormally with code 1\n" event) (message "Failed"))
+     (t (progn
+	  (string-match "\\(.*\\)[^\n]" event)
+	  (message "Failed: '%s'" (match-string 1 event)))))))
 
 (defun run-spec (file buffer)
   (let ((spec "spec"))
@@ -94,7 +89,7 @@
    (t (error "File is not a known ruby test file"))))
 
 (defun find-ruby-test-file ()
-  (setq last-run-test-file
+  (setq ruby-test-last-run
 	(car (select 'ruby-any-test-p 
 		     (let ((files (nconc
 				   (cons 
@@ -102,8 +97,8 @@
 				    (mapcar 
 				     (lambda (win-name) (buffer-file-name (window-buffer win-name)))
 				     (window-list))))))
-		       (if (boundp 'last-run-test-file)
-			   (nconc files (list last-run-test-file)))
+		       (if (boundp 'ruby-test-last-run)
+			   (nconc files (list ruby-test-last-run)))
 		       (mapcar 'message files)
 		       (select 'identity files))))))
 
@@ -116,25 +111,12 @@
 	(run-test-file test-file ruby-test-buffer)
       (message "No test among visible buffers or run earlier."))))
 
-;; 	`(face nil
-;; 	  message ,(list (list nil nil nil dst) 2)
-;; 	  help-echo "mouse-2: visit the source location"
-;; 	  keymap compilation-button-map
-;; 	  mouse-face highlight)
-
-;;      ("^Compilation \\(finished\\).*"
-;;       (0 '(face nil message nil help-echo nil mouse-face nil) t)
-;;       (1 compilation-info-face))
-
 (defvar ruby-test-backtrace-key-map 
   "The keymap which is bound to marked trace frames.")
 
-(defun ruby-test-goto-location (event)
-  (message "RUBY-TEST-GOTO-LOCATION, event: %S" event))
-
-(defun ruby-test-goto-location-by-ret ()
+(defun ruby-test-goto-location ()
   (interactive)
-  (message "RUBY-TEST-GOTO-LOCATION-BY-RET %S" (point)))
+  (message "RUBY-TEST-GOTO-LOCATION %S" (point)))
 
 (setq ruby-test-backtrace-key-map
       (make-sparse-keymap))
@@ -143,16 +125,20 @@
 
 (defvar ruby-test-mode-map nil)
 (setq ruby-test-mode-map (make-sparse-keymap))
-(define-key ruby-test-mode-map "\r" 'ruby-test-goto-location-by-ret)
+(define-key ruby-test-mode-map "\r" 'ruby-test-goto-location)
+(define-key ruby-test-mode-map [mouse-2] 'ruby-test-goto-location)
 
 (defvar ruby-test-font-lock-keywords
   (list 
-   '("^\\(\\(.*\\):\\([0-9]+\\)\\):" 1 
-     '(face font-lock-keyword-face 
-	    message nil 
+   '("^[[:space:]]*\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1 
+     `(face font-lock-warning-face 
+	    message '((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
+		      (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
+	    follow-link t
+	    underline t
+	    mouse-face highlight
 	    help-echo "RET to visit location"
-	    keymap ruby-test-backtrace-key-map)
-   )))
+	    keymap ruby-test-backtrace-key-map))))
 
 (defun ruby-test-mode ()
   "Major mode for running ruby tests and display results."
@@ -160,15 +146,14 @@
   (kill-all-local-variables)
   (use-local-map ruby-test-mode-map)
   (make-local-variable 'view-read-only)
-  (set (make-local-variable 'font-lock-defaults) '((ruby-test-font-lock-keywords) nil nil))
-  (set (make-local-variable 'font-lock-keywords) 'ruby-test-font-lock-keywords)
-;;  (set (make-local-variable 'indent-line-function) 'ruby-test-indent-line) 
+  (set (make-local-variable 'font-lock-defaults) 
+       '((ruby-test-font-lock-keywords) nil nil))
   (setq major-mode 'ruby-test-mode)
   (setq mode-name "Ruby-Test")
   (run-hooks 'ruby-test-mode-hook))
 
 ;; global, since these bindings should be visible in other windows 
-;; operating on the `last-run-test-file'.
+;; operating on the `ruby-test-last-run'.
 (global-set-key (kbd "C-x t") 'ruby-run-buffer-file-as-test)
 (global-set-key (kbd "C-x SPC") 'ruby-run-buffer-file-as-test)
 

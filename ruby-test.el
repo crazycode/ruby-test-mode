@@ -9,6 +9,7 @@
 
 
 ;;; Commentary:
+
 ;; This mode provides commands for running ruby test. The tests can be
 ;; both either rspec behaviours or unit tests. The output is shown in
 ;; separate buffer '*Ruby-Test*'. Backtrace from failures are marked
@@ -157,10 +158,18 @@ been placed by the font-lock keyswords."
 	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
 		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
 	    follow-link t
-	    underline t
 	    mouse-face highlight
 	    help-echo "RET to visit location"
-	    keymap ruby-test-backtrace-key-map))))
+	    keymap ruby-test-backtrace-key-map))
+   '("^[[:alnum:]_]*(.+) \\[\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\)\\]:" 1
+     `(face font-lock-warning-face
+	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
+		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
+	    follow-link t
+	    mouse-face highlight
+	    help-echo "RET to visit location"
+	    keymap ruby-test-backtrace-key-map))
+   ))
 
 (defun ruby-test-mode ()
   "Major mode for running ruby tests and display results."

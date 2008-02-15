@@ -7,6 +7,7 @@
 ;;   - run single test method or spec example
 ;;   - use small window for output
 ;;   - run test given in a buffer variable
+;;   - run test as by rails file name convention
 ;;   - set rails spec script comfortably
 
 ;;; Commentary:

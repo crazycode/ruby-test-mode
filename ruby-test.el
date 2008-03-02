@@ -2,13 +2,11 @@
 
 ;; Caspar Florian Ebeling <florian.ebeling@gmail.com>, 2007-12-06
 ;; This software can be redistributed. GPL v2 applies.
- 
+
 ;; todo
 ;;   - run single test method or spec example
 ;;   - use small window for output
-;;   - run test given in a buffer variable
-;;   - run test as by rails file name convention
-;;   - set rails spec script comfortably
+
 
 ;;; Commentary:
 
@@ -28,12 +26,6 @@
 (defvar ruby-test-mode-hook)
 
 (defvar ruby-test-last-run)
-
-(defvar ruby-test-ruby-executable "/opt/local/bin/ruby"
-  "Set the ruby binary to be used.")
-
-(defvar ruby-test-spec-executable "/opt/local/bin/spec"
-  "Set the spec exectable to be used.")
 
 (defvar ruby-test-buffer)
 
@@ -73,6 +65,25 @@
       (let ((proc (start-process "ruby-test" buffer command-string  file)))
 	(set-process-sentinel proc 'ruby-test-runner-sentinel)))))
 
+(defun rails-root(&optional filename)
+  "Returns the rails project directory for the current buffer's filename or
+the filename of the optional argument."
+  (interactive)
+  (let ((candidates ()) (directory ""))
+    (dolist (element (split-string (or filename (buffer-file-name)) "/"))
+      (setq directory (file-name-as-directory (concat directory element "/")))
+      (if (and (file-exists-p directory) (rails-root-p directory))
+	  (add-to-list 'candidates directory))
+      )
+    (car candidates)))
+
+(defun rails-root-p(directory)
+  "Returns true if the given directory is the root of a rails project, else false."
+  (let (found)
+    (dolist (element '("config/environment.rb" "config/database.yml"))
+      (setq found (or found (file-exists-p (concat (file-name-as-directory directory) element)))))
+    found))
+
 (defun ruby-test-runner-sentinel (process event)
   (save-excursion
     (set-buffer ruby-test-buffer)
@@ -86,14 +97,14 @@
 (defun run-spec (file buffer)
   (let ((spec "spec"))
     (invoke-test-file
-     (or ruby-test-spec-executable spec)
+     (or (ruby-test-spec-executable) spec)
      spec
      file
      buffer)))
 
 (defun run-test (file buffer)
   (invoke-test-file
-   (or ruby-test-ruby-executable "ruby")
+   (or (ruby-test-ruby-executable) "ruby")
    "unit test"
    file
    buffer))
@@ -184,6 +195,22 @@ been placed by the font-lock keyswords."
   (setq major-mode 'ruby-test-mode)
   (setq mode-name "Ruby-Test")
   (run-hooks 'ruby-test-mode-hook))
+
+(defun ruby-test-ruby-executable()
+  "Returns the ruby binary to be used."
+  (let ((executables '("/usr/bin/ruby" "/usr/local/bin/ruby" "/opt/local/bin/ruby")))
+    (car (delete-if-not 'file-exists-p executables))))
+
+(defun ruby-test-spec-executable(&optional filename)
+  "Returns the spec exectable to be used for the current buffer
+filename or the given one. If (buffer) filename is under the hierarchy of
+a rails project, the project executable is returned, else the
+first existing default executable."
+  (interactive)
+  (let ((executables '("/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec")))
+    (if (and (rails-root filename) (file-exists-p (rails-root filename)))
+	(add-to-list 'executables (concat (rails-root filename) "script/spec")))
+    (car (delete-if-not 'file-exists-p executables))))
 
 ;; global, since these bindings should be visible in other windows
 ;; operating on the `ruby-test-last-run'.

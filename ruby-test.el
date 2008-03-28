@@ -6,7 +6,9 @@
 ;; todo
 ;;   - run single test method or spec example
 ;;   - use small window for output
-
+;;   - bug: cannot re-start test from output buffer: "split-string: Wrong type argument: stringp, nil"
+;;   - use ruby and other executables cadidates list from variables, not hard-coded
+;;   - bug: always show the code from backtrace in another window, not only if cursor outside output
 
 ;;; Commentary:
 
@@ -65,7 +67,7 @@
       (let ((proc (start-process "ruby-test" buffer command-string  file)))
 	(set-process-sentinel proc 'ruby-test-runner-sentinel)))))
 
-(defun rails-root(&optional filename)
+(defun rails-root (&optional filename)
   "Returns the rails project directory for the current buffer's filename or
 the filename of the optional argument."
   (interactive)
@@ -73,11 +75,10 @@ the filename of the optional argument."
     (dolist (element (split-string (or filename (buffer-file-name)) "/"))
       (setq directory (file-name-as-directory (concat directory element "/")))
       (if (and (file-exists-p directory) (rails-root-p directory))
-	  (add-to-list 'candidates directory))
-      )
+	  (add-to-list 'candidates directory)))
     (car candidates)))
 
-(defun rails-root-p(directory)
+(defun rails-root-p (directory)
   "Returns true if the given directory is the root of a rails project, else false."
   (let (found)
     (dolist (element '("config/environment.rb" "config/database.yml"))
@@ -144,7 +145,7 @@ the filename of the optional argument."
 (defun ruby-test-goto-location ()
   "This command is not for interactive use.
 It reads the MESSAGE text property of a position, which has
-been placed by the font-lock keyswords."
+been placed by the font-lock keywords."
   (interactive)
   (set-buffer ruby-test-buffer)
   (let (alist file-name line-number)
@@ -181,8 +182,7 @@ been placed by the font-lock keyswords."
 	    follow-link t
 	    mouse-face highlight
 	    help-echo "RET to visit location"
-	    keymap ruby-test-backtrace-key-map))
-   ))
+	    keymap ruby-test-backtrace-key-map))))
 
 (defun ruby-test-mode ()
   "Major mode for running ruby tests and display results."

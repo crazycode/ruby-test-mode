@@ -20,6 +20,7 @@
 
 ;;; History:
 ;; - 09.02.08, Clickable backtrace added.
+;; - 02.03.08, Rails support, by Roman Scherer
 
 ;;; Code:
 

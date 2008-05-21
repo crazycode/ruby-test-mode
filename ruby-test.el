@@ -32,6 +32,15 @@
 
 (defvar ruby-test-buffer)
 
+(defvar ruby-test-ruby-executables
+  '("/usr/bin/ruby" "/usr/local/bin/ruby" "/opt/local/bin/ruby"))
+
+(defvar ruby-test-spec-executables
+  '("/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec"))
+
+(defvar ruby-test-backtrace-key-map
+  "The keymap which is bound to marked trace frames.")
+
 (defun ruby-spec-p (filename)
   (and (stringp filename) (string-match "spec\.rb$" filename)))
 
@@ -68,12 +77,12 @@
       (let ((proc (start-process "ruby-test" buffer command-string  file)))
 	(set-process-sentinel proc 'ruby-test-runner-sentinel)))))
 
-(defun rails-root (&optional filename)
-  "Returns the rails project directory for the current buffer's filename or
-the filename of the optional argument."
+(defun rails-root (filename)
+  "Returns the rails project directory for the current buffer's
+filename or the filename of the optional argument."
   (interactive)
-  (let ((candidates ()) (directory ""))
-    (dolist (element (split-string (or filename (buffer-file-name)) "/"))
+  (let (candidates (directory ""))
+    (dolist (element (split-string filename "/"))
       (setq directory (file-name-as-directory (concat directory element "/")))
       (if (and (file-exists-p directory) (rails-root-p directory))
 	  (add-to-list 'candidates directory)))
@@ -96,40 +105,41 @@ the filename of the optional argument."
 	  (string-match "\\(.*\\)[^\n]" event)
 	  (message "Failed: '%s'" (match-string 1 event)))))))
 
-(defun run-spec (file buffer)
+(defun run-spec (test-file output-buffer)
   (let ((spec "spec"))
     (invoke-test-file
-     (or (ruby-test-spec-executable) spec)
+     (or (ruby-test-spec-executable test-file) spec)
      spec
-     file
-     buffer)))
+     test-file
+     output-buffer)))
 
-(defun run-test (file buffer)
+(defun run-test (test-file output-buffer)
   (invoke-test-file
-   (or (ruby-test-ruby-executable) "ruby")
+   (or (ruby-test-ruby-executable test-file) "ruby")
    "unit test"
-   file
-   buffer))
+   test-file
+   output-buffer))
 
-(defun run-test-file (file buffer)
+(defun run-test-file (file output-buffer)
   (cond
-   ((ruby-spec-p file) (run-spec file buffer))
-   ((ruby-test-p file) (run-test file buffer))
+   ((ruby-spec-p file) (run-spec file output-buffer))
+   ((ruby-test-p file) (run-test file output-buffer))
    (t (error "File is not a known ruby test file"))))
 
 (defun find-ruby-test-file ()
-  (setq ruby-test-last-run
-	(car (select 'ruby-any-test-p
-		     (let ((files (nconc
-				   (cons
-				    (buffer-file-name)
-				    (mapcar
-				     (lambda (win-name) (buffer-file-name (window-buffer win-name)))
-				     (window-list))))))
-		       (if (boundp 'ruby-test-last-run)
-			   (nconc files (list ruby-test-last-run)))
-		       (mapcar 'message files)
-		       (select 'identity files))))))
+  "Find the test file to run in number of diffeerent ways:
+current buffer (if that's a test; another open buffer which is a
+test; or the last run test (if there was one)."
+  (let ((files))
+    (if (buffer-file-name)
+	(setq files (cons (buffer-file-name) files)))
+    (setq files (append
+		 (mapcar
+		  (lambda (win-name) (buffer-file-name (window-buffer win-name)))
+		  (window-list))))
+    (if (boundp 'ruby-test-last-run)
+	(nconc files (list ruby-test-last-run)))
+    (setq ruby-test-last-run (car (select 'ruby-any-test-p (select 'identity files))))))
 
 (defun ruby-run-buffer-file-as-test ()
   "Run buffer's file, first visible window file or last-run as ruby test (or spec)."
@@ -139,9 +149,6 @@ the filename of the optional argument."
     (if test-file
 	(run-test-file test-file ruby-test-buffer)
       (message "No test among visible buffers or run earlier."))))
-
-(defvar ruby-test-backtrace-key-map
-  "The keymap which is bound to marked trace frames.")
 
 (defun ruby-test-goto-location ()
   "This command is not for interactive use.
@@ -186,7 +193,8 @@ been placed by the font-lock keywords."
 	    keymap ruby-test-backtrace-key-map))))
 
 (defun ruby-test-mode ()
-  "Major mode for running ruby tests and display results."
+  "Major mode for running ruby tests and displaying
+results. Allows to visit source file locations from backtraces."
   (interactive)
   (kill-all-local-variables)
   (use-local-map ruby-test-mode-map)
@@ -197,28 +205,25 @@ been placed by the font-lock keywords."
   (setq mode-name "Ruby-Test")
   (run-hooks 'ruby-test-mode-hook))
 
-(defun ruby-test-ruby-executable()
+(defun ruby-test-ruby-executable ()
   "Returns the ruby binary to be used."
-  (let ((executables '("/usr/bin/ruby" "/usr/local/bin/ruby" "/opt/local/bin/ruby")))
-    (car (delete-if-not 'file-exists-p executables))))
+  (car (delete-if-not 'file-exists-p ruby-test-ruby-executable)))
 
-(defun ruby-test-spec-executable(&optional filename)
+(defun ruby-test-spec-executable (test-file)
   "Returns the spec exectable to be used for the current buffer
-filename or the given one. If (buffer) filename is under the hierarchy of
-a rails project, the project executable is returned, else the
-first existing default executable."
+test-file or the given one. If (buffer) test-file is inside of a
+rails project, the project executable is returned, else the first
+existing default executable."
   (interactive)
-  (let ((executables '("/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec")))
-    (if (and (rails-root filename) (file-exists-p (rails-root filename)))
-	(add-to-list 'executables (concat (rails-root filename) "script/spec")))
+  (let ((executables (copy-tree ruby-test-spec-executables)))
+    (if (and (rails-root test-file) (file-exists-p (rails-root test-file)))
+	(add-to-list 'executables (concat (rails-root test-file) "script/spec")))
     (car (delete-if-not 'file-exists-p executables))))
 
 ;; global, since these bindings should be visible in other windows
-;; operating on the `ruby-test-last-run'.
+;; operating on the file named by variable `ruby-test-last-run'.
 (global-set-key (kbd "C-x t") 'ruby-run-buffer-file-as-test)
 (global-set-key (kbd "C-x SPC") 'ruby-run-buffer-file-as-test)
-
-(provide 'ruby-test)
 
 (provide 'ruby-test)
 

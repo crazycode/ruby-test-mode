@@ -115,7 +115,7 @@ filename or the filename of the optional argument."
 
 (defun run-test (test-file output-buffer)
   (invoke-test-file
-   (or (ruby-test-ruby-executable test-file) "ruby")
+   (or (ruby-test-ruby-executable) "ruby")
    "unit test"
    test-file
    output-buffer))
@@ -207,7 +207,7 @@ results. Allows to visit source file locations from backtraces."
 
 (defun ruby-test-ruby-executable ()
   "Returns the ruby binary to be used."
-  (car (delete-if-not 'file-exists-p ruby-test-ruby-executable)))
+  (car (delete-if-not 'file-exists-p ruby-test-ruby-executables)))
 
 (defun ruby-test-spec-executable (test-file)
   "Returns the spec exectable to be used for the current buffer

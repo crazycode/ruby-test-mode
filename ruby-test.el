@@ -5,9 +5,6 @@
 
 ;; todo
 ;;   - run single test method or spec example
-;;   - use small window for output
-;;   - bug: cannot re-start test from output buffer: "split-string: Wrong type argument: stringp, nil"
-;;   - use ruby and other executables cadidates list from variables, not hard-coded
 ;;   - bug: always show the code from backtrace in another window, not only if cursor outside output
 
 ;;; Commentary:
@@ -21,6 +18,7 @@
 ;;; History:
 ;; - 09.02.08, Clickable backtrace added.
 ;; - 02.03.08, Rails support, by Roman Scherer
+;; - 06.06.08, Bugfixes
 
 ;;; Code:
 

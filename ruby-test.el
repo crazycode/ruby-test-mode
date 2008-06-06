@@ -33,10 +33,12 @@
 (defvar ruby-test-buffer)
 
 (defvar ruby-test-ruby-executables
-  '("/usr/bin/ruby" "/usr/local/bin/ruby" "/opt/local/bin/ruby"))
+  '("ruby" "/usr/bin/ruby" "/usr/local/bin/ruby" "/opt/local/bin/ruby")
+  "*A list of ruby executables to use. The first existing will get picked.")
 
 (defvar ruby-test-spec-executables
-  '("/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec"))
+  '("spec" "/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec")
+  "*A list of spec executables. The first existing will get picked.")
 
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
@@ -80,7 +82,7 @@
 (defun rails-root (filename)
   "Returns the rails project directory for the current buffer's
 filename or the filename of the optional argument."
-  (interactive)
+  (interactive "f")
   (let (candidates (directory ""))
     (dolist (element (split-string filename "/"))
       (setq directory (file-name-as-directory (concat directory element "/")))
@@ -92,7 +94,7 @@ filename or the filename of the optional argument."
   "Returns true if the given directory is the root of a rails project, else false."
   (let (found)
     (dolist (element '("config/environment.rb" "config/database.yml"))
-      (setq found (or found (file-exists-p (concat (file-name-as-directory directory) element)))))
+      (setq found (and found (file-exists-p (concat (file-name-as-directory directory) element)))))
     found))
 
 (defun ruby-test-runner-sentinel (process event)
@@ -213,12 +215,23 @@ results. Allows to visit source file locations from backtraces."
   "Returns the spec exectable to be used for the current buffer
 test-file or the given one. If (buffer) test-file is inside of a
 rails project, the project executable is returned, else the first
-existing default executable."
-  (interactive)
-  (let ((executables (copy-tree ruby-test-spec-executables)))
-    (if (and (rails-root test-file) (file-exists-p (rails-root test-file)))
+existing default executable. If the default executable is
+relative, it is assumed to be somewhere in `PATH'."
+  (interactive "b")
+  (if (not (buffer-file-name (get-buffer test-file)))
+      (error "%s" "Cannot find spec relative to non-file buffer"))
+  (let ((executables (copy-sequence ruby-test-spec-executables)))
+    (if (and (rails-root test-file) 
+	     (file-exists-p (rails-root test-file)))
 	(add-to-list 'executables (concat (rails-root test-file) "script/spec")))
-    (car (delete-if-not 'file-exists-p executables))))
+    (setq executables (mapcar (lambda (entry)
+				(if (file-name-absolute-p entry)
+				    entry
+				  (executable-find entry)))
+			      executables))
+    (let ((spec (car (delete-if-not 'file-exists-p executables))))
+      (message "spec: %s" spec)
+      spec)))
 
 ;; global, since these bindings should be visible in other windows
 ;; operating on the file named by variable `ruby-test-last-run'.

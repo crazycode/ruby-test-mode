@@ -6,6 +6,7 @@
 ;; todo
 ;;   - run single test method or spec example
 ;;   - bug: always show the code from backtrace in another window, not only if cursor outside output
+;;   - bug: find the first ruby from PATH if path was not absolute 
 
 ;;; Commentary:
 
@@ -31,7 +32,7 @@
 (defvar ruby-test-buffer)
 
 (defvar ruby-test-ruby-executables
-  '("ruby" "/usr/bin/ruby" "/usr/local/bin/ruby" "/opt/local/bin/ruby")
+  '("/opt/local/bin/ruby" "ruby" "/usr/bin/ruby" "/usr/local/bin/ruby")
   "*A list of ruby executables to use. The first existing will get picked.")
 
 (defvar ruby-test-spec-executables

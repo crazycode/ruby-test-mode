@@ -5,7 +5,6 @@
 
 ;; todo
 ;;   - run single test method or spec example
-;;   - bug: always show the code from backtrace in another window, not only if cursor outside output
 ;;   - bug: find the first ruby from PATH if path was not absolute 
 ;;   - bug: square bracket makes jump-to-line fail
 
@@ -145,7 +144,8 @@ test; or the last run test (if there was one)."
     (setq ruby-test-last-run (car (select 'ruby-any-test-p (select 'identity files))))))
 
 (defun ruby-run-buffer-file-as-test ()
-  "Run buffer's file, first visible window file or last-run as ruby test (or spec)."
+  "Run buffer's file, first visible window file or last-run as
+ruby test (or spec)."
   (interactive)
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
   (let ((test-file (find-ruby-test-file)))
@@ -154,16 +154,19 @@ test; or the last run test (if there was one)."
       (message "No test among visible buffers or run earlier."))))
 
 (defun ruby-test-goto-location ()
-  "This command is not for interactive use.
-It reads the MESSAGE text property of a position, which has
-been placed by the font-lock keywords."
+  "This command is not really meant for interactive use, but has
+to be declared as such to be accessible from a key map.  It reads
+the MESSAGE text property of a position, which has been placed by
+the font-lock keywords."
   (interactive)
   (set-buffer ruby-test-buffer)
   (let (alist file-name line-number)
     (setq alist (get-text-property (point) 'message))
     (setq file-name (cdr (assoc 'file-name alist)))
     (setq line-number (cdr (assoc 'line-number alist)))
-    (find-file file-name)
+    (if (equal (window-buffer (selected-window)) ruby-test-buffer)
+	(find-file-other-window file-name)
+      (find-file file-name))
     (goto-line line-number)))
 
 (setq ruby-test-backtrace-key-map
@@ -178,7 +181,7 @@ been placed by the font-lock keywords."
 
 (defvar ruby-test-font-lock-keywords
   (list
-   '("^[[:space:]]*\\[?\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1
+   '("^[[:space:]]*\\[?\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1 ; test/unit backtrace
      `(face font-lock-warning-face
 	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
 		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
@@ -186,7 +189,7 @@ been placed by the font-lock keywords."
 	    mouse-face highlight
 	    help-echo "RET to visit location"
 	    keymap ruby-test-backtrace-key-map))
-   '("^[[:alnum:]_]+(.+) \\[\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\)\\]:" 1
+   '("^[[:alnum:]_]+(.+) \\[\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\)\\]:" 1 ; rspec backtrace
      `(face font-lock-warning-face
 	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
 		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))
@@ -240,5 +243,4 @@ relative, it is assumed to be somewhere in `PATH'."
 (global-set-key (kbd "C-x SPC") 'ruby-run-buffer-file-as-test)
 
 (provide 'ruby-test)
-
 ;;; ruby-test.el ends here

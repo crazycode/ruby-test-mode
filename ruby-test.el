@@ -1,4 +1,4 @@
-;;; ruby-test.el --- Test runner for the ruby laguage.
+;;; ruby-test.el --- Test runner for ruby unit tests.
 
 ;; Caspar Florian Ebeling <florian.ebeling@gmail.com>, 2007-12-06
 ;; This software can be redistributed. GPL v2 applies.
@@ -7,6 +7,8 @@
 ;;   - run single test method or spec example
 ;;   - bug: always show the code from backtrace in another window, not only if cursor outside output
 ;;   - bug: find the first ruby from PATH if path was not absolute 
+;;   - bug: square bracket makes jump-to-line fail
+
 
 ;;; Commentary:
 
@@ -20,7 +22,7 @@
 ;; - 09.02.08, Clickable backtrace added.
 ;; - 02.03.08, Rails support, by Roman Scherer
 ;; - 06.06.08, Bugfixes
-
+;; - 09.07.08, Fix backtrace rendering
 ;;; Code:
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
@@ -184,7 +186,7 @@ been placed by the font-lock keywords."
 	    mouse-face highlight
 	    help-echo "RET to visit location"
 	    keymap ruby-test-backtrace-key-map))
-   '("^[[:alnum:]_]*(.+) \\[\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\)\\]:" 1
+   '("^[[:alnum:]_]+(.+) \\[\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\)\\]:" 1
      `(face font-lock-warning-face
 	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
 		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))

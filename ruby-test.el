@@ -9,7 +9,6 @@
 ;;   - bug: find the first ruby from PATH if path was not absolute 
 ;;   - bug: square bracket makes jump-to-line fail
 
-
 ;;; Commentary:
 
 ;; This mode provides commands for running ruby test. The tests can be
@@ -23,6 +22,7 @@
 ;; - 02.03.08, Rails support, by Roman Scherer
 ;; - 06.06.08, Bugfixes
 ;; - 09.07.08, Fix backtrace rendering
+
 ;;; Code:
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
@@ -178,7 +178,7 @@ been placed by the font-lock keywords."
 
 (defvar ruby-test-font-lock-keywords
   (list
-   '("^[[:space:]]*\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1
+   '("^[[:space:]]*\\[?\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1
      `(face font-lock-warning-face
 	    message ((file-name . ,(buffer-substring-no-properties (match-beginning 2) (match-end 2)))
 		     (line-number . ,(string-to-number (buffer-substring-no-properties (match-beginning 3) (match-end 3)))))

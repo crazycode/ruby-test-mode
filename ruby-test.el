@@ -6,7 +6,6 @@
 ;; todo
 ;;   - run single test method or spec example
 ;;   - bug: find the first ruby from PATH if path was not absolute 
-;;   - bug: square bracket makes jump-to-line fail
 
 ;;; Commentary:
 

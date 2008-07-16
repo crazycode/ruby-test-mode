@@ -52,12 +52,9 @@
   (or (ruby-spec-p filename)
       (ruby-test-p filename)))
 
-(defun odd-p (i) (= 1 (mod i 2)))
-
-(defun even-p (i) (= 0 (mod i 2)))
-
 (defun select (fn ls)
-  "Create a list LS for which FN returns non-nil."
+  "Create a list from elements of list LS for which FN returns
+non-nil."
   (let ((result nil))
     (dolist (item ls)
       (if (funcall fn item)
@@ -142,7 +139,7 @@ test; or the last run test (if there was one)."
 	(nconc files (list ruby-test-last-run)))
     (setq ruby-test-last-run (car (select 'ruby-any-test-p (select 'identity files))))))
 
-(defun ruby-run-buffer-file-as-test ()
+(defun ruby-test-run-file ()
   "Run buffer's file, first visible window file or last-run as
 ruby test (or spec)."
   (interactive)
@@ -238,8 +235,8 @@ relative, it is assumed to be somewhere in `PATH'."
 
 ;; global, since these bindings should be visible in other windows
 ;; operating on the file named by variable `ruby-test-last-run'.
-(global-set-key (kbd "C-x t") 'ruby-run-buffer-file-as-test)
-(global-set-key (kbd "C-x SPC") 'ruby-run-buffer-file-as-test)
+(global-set-key (kbd "C-x t") 'ruby-test-run-file)
+(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
 
 (provide 'ruby-test)
 ;;; ruby-test.el ends here

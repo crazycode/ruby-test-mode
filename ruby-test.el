@@ -259,7 +259,6 @@ relative, it is assumed to be somewhere in `PATH'."
     (setq executables (mapcar 'ruby-test-expand-executable-path 
 			      executables))
     (let ((spec (car (select 'file-readable-p executables))))
-      (message "spec found: %s" spec)
       spec)))
 
 (provide 'ruby-test)

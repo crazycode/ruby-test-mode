@@ -8,11 +8,20 @@
 
 ;;; Commentary:
 
-;; This mode provides commands for running ruby test. The tests can be
-;; both either rspec behaviours or unit tests. The output is shown in
-;; separate buffer '*Ruby-Test*'. Backtrace from failures are marked
-;; and can clicked to bring up the referenced source file, where the
-;; cursor is moved to the named line.
+;; This mode provides commands for running ruby tests. The output is
+;; shown in separate buffer '*Ruby-Test*' in ruby-test
+;; mode. Backtraces from failures and errors are marked, and can be
+;; clicked to bring up the relevent source file, where point is moved
+;; to the named line.
+;;
+;; The tests can be both, either rspec behaviours, or unit
+;; tests. (File names are assumed to end in _spec.rb or _test.rb to
+;; tell the type.)  When the command for running a test is invoked, it
+;; looks at several places for an actual test to run: first, it looks
+;; if the current buffer is a test (or spec), secondly, if not, it
+;; checks whether one of the visible buffers is, thirdly it looks if
+;; there has been a test run before (during this session), in which
+;; case that test is invoked again.
 
 ;;; History:
 ;; - 09.02.08, Clickable backtrace added.
@@ -47,6 +56,11 @@
 
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
+
+;; global, since these bindings should be visible in other windows
+;; operating on the file named by variable `ruby-test-last-run'.
+(global-set-key (kbd "C-x t") 'ruby-test-run-file)
+(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
 
 (defun ruby-spec-p (filename)
   (and (stringp filename) (string-match "spec\.rb$" filename)))
@@ -247,11 +261,6 @@ relative, it is assumed to be somewhere in `PATH'."
     (let ((spec (car (select 'file-readable-p executables))))
       (message "spec found: %s" spec)
       spec)))
-
-;; global, since these bindings should be visible in other windows
-;; operating on the file named by variable `ruby-test-last-run'.
-(global-set-key (kbd "C-x t") 'ruby-test-run-file)
-(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
 
 (provide 'ruby-test)
 ;;; ruby-test.el ends here

@@ -5,7 +5,6 @@
 
 ;; todo
 ;;   - run single test method or spec example
-;;   - bug: find the first ruby from PATH if path was not absolute 
 
 ;;; Commentary:
 
@@ -20,6 +19,7 @@
 ;; - 02.03.08, Rails support, by Roman Scherer
 ;; - 06.06.08, Bugfixes
 ;; - 09.07.08, Fix backtrace rendering
+;; - 17.07.08, Fix rails support and lookup of unqualified executables
 
 ;;; Code:
 
@@ -32,12 +32,18 @@
 (defvar ruby-test-buffer)
 
 (defvar ruby-test-ruby-executables
-  '("/opt/local/bin/ruby" "ruby" "/usr/bin/ruby" "/usr/local/bin/ruby")
-  "*A list of ruby executables to use. The first existing will get picked.")
+  '("/opt/local/bin/ruby" "/usr/bin/ruby" "ruby" "ruby1.9")
+  "*A list of ruby executables to use. Non-absolute paths get
+  expanded using `PATH'. The first existing will get picked. Set
+  this variable to use the implementation you intend to test
+  with.")
 
 (defvar ruby-test-spec-executables
-  '("spec" "/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec")
-  "*A list of spec executables. The first existing will get picked.")
+  '("/opt/local/bin/spec" "spec" "/usr/bin/spec" "/usr/local/bin/spec")
+  "*A list of spec executables. If the spec does not belong to a
+  rails project, then non-absolute paths get expanded using
+  `PATH'; The first existing will get picked. In a rails project
+  the `script/spec' script will be invoked.")
 
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
@@ -87,10 +93,14 @@ filename or the filename of the optional argument."
     (car candidates)))
 
 (defun rails-root-p (directory)
-  "Returns true if the given directory is the root of a rails project, else false."
-  (let (found)
+  "Returns `t' if the given directory is the root of a rails
+project, else `nil'."
+  (let ((found t))
     (dolist (element '("config/environment.rb" "config/database.yml"))
-      (setq found (and found (file-exists-p (concat (file-name-as-directory directory) element)))))
+      (setq found (and found 
+		       (file-exists-p (concat 
+				       (file-name-as-directory directory) 
+				       element)))))
     found))
 
 (defun ruby-test-runner-sentinel (process event)
@@ -207,12 +217,20 @@ results. Allows to visit source file locations from backtraces."
   (setq mode-name "Ruby-Test")
   (run-hooks 'ruby-test-mode-hook))
 
+(defun ruby-test-expand-executable-path (name)
+  (if (file-name-absolute-p name)
+      name
+    (executable-find name)))
+
 (defun ruby-test-ruby-executable ()
   "Returns the ruby binary to be used."
-  (car (delete-if-not 'file-exists-p ruby-test-ruby-executables)))
+  (car (select 'file-readable-p 
+	       (select 'identity
+		       (mapcar 'ruby-test-expand-executable-path
+			       ruby-test-ruby-executables)))))
 
 (defun ruby-test-spec-executable (test-file)
-  "Returns the spec exectable to be used for the current buffer
+  "Returns the spec executable to be used for the current buffer
 test-file or the given one. If (buffer) test-file is inside of a
 rails project, the project executable is returned, else the first
 existing default executable. If the default executable is
@@ -221,16 +239,13 @@ relative, it is assumed to be somewhere in `PATH'."
   (if (not (buffer-file-name (get-buffer test-file)))
       (error "%s" "Cannot find spec relative to non-file buffer"))
   (let ((executables (copy-sequence ruby-test-spec-executables)))
-    (if (and (rails-root test-file) 
-	     (file-exists-p (rails-root test-file)))
-	(add-to-list 'executables (concat (rails-root test-file) "script/spec")))
-    (setq executables (mapcar (lambda (entry)
-				(if (file-name-absolute-p entry)
-				    entry
-				  (executable-find entry)))
+    (if (rails-root test-file) 
+	(add-to-list 'executables (concat (rails-root test-file) 
+					  "script/spec")))
+    (setq executables (mapcar 'ruby-test-expand-executable-path 
 			      executables))
-    (let ((spec (car (delete-if-not 'file-exists-p executables))))
-      (message "spec: %s" spec)
+    (let ((spec (car (select 'file-readable-p executables))))
+      (message "spec found: %s" spec)
       spec)))
 
 ;; global, since these bindings should be visible in other windows

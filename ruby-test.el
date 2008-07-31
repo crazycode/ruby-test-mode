@@ -5,21 +5,30 @@
 
 ;; todo
 ;;   - run single test method or spec example
-;;   - bug: find the first ruby from PATH if path was not absolute 
 
 ;;; Commentary:
 
-;; This mode provides commands for running ruby test. The tests can be
-;; both either rspec behaviours or unit tests. The output is shown in
-;; separate buffer '*Ruby-Test*'. Backtrace from failures are marked
-;; and can clicked to bring up the referenced source file, where the
-;; cursor is moved to the named line.
+;; This mode provides commands for running ruby tests. The output is
+;; shown in separate buffer '*Ruby-Test*' in ruby-test
+;; mode. Backtraces from failures and errors are marked, and can be
+;; clicked to bring up the relevent source file, where point is moved
+;; to the named line.
+;;
+;; The tests can be both, either rspec behaviours, or unit
+;; tests. (File names are assumed to end in _spec.rb or _test.rb to
+;; tell the type.)  When the command for running a test is invoked, it
+;; looks at several places for an actual test to run: first, it looks
+;; if the current buffer is a test (or spec), secondly, if not, it
+;; checks whether one of the visible buffers is, thirdly it looks if
+;; there has been a test run before (during this session), in which
+;; case that test is invoked again.
 
 ;;; History:
 ;; - 09.02.08, Clickable backtrace added.
 ;; - 02.03.08, Rails support, by Roman Scherer
 ;; - 06.06.08, Bugfixes
 ;; - 09.07.08, Fix backtrace rendering
+;; - 17.07.08, Fix rails support and lookup of unqualified executables
 
 ;;; Code:
 
@@ -32,15 +41,26 @@
 (defvar ruby-test-buffer)
 
 (defvar ruby-test-ruby-executables
-  '("/opt/local/bin/ruby" "ruby" "/usr/bin/ruby" "/usr/local/bin/ruby")
-  "*A list of ruby executables to use. The first existing will get picked.")
+  '("/opt/local/bin/ruby" "/usr/bin/ruby" "ruby" "ruby1.9")
+  "*A list of ruby executables to use. Non-absolute paths get
+  expanded using `PATH'. The first existing will get picked. Set
+  this variable to use the implementation you intend to test
+  with.")
 
 (defvar ruby-test-spec-executables
-  '("spec" "/usr/bin/spec" "/usr/local/bin/spec" "/var/lib/gems/1.8/bin/spec" "/opt/local/bin/spec")
-  "*A list of spec executables. The first existing will get picked.")
+  '("/opt/local/bin/spec" "spec" "/usr/bin/spec" "/usr/local/bin/spec")
+  "*A list of spec executables. If the spec does not belong to a
+  rails project, then non-absolute paths get expanded using
+  `PATH'; The first existing will get picked. In a rails project
+  the `script/spec' script will be invoked.")
 
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
+
+;; global, since these bindings should be visible in other windows
+;; operating on the file named by variable `ruby-test-last-run'.
+(global-set-key (kbd "C-x t") 'ruby-test-run-file)
+(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
 
 (defun ruby-spec-p (filename)
   (and (stringp filename) (string-match "spec\.rb$" filename)))
@@ -52,12 +72,9 @@
   (or (ruby-spec-p filename)
       (ruby-test-p filename)))
 
-(defun odd-p (i) (= 1 (mod i 2)))
-
-(defun even-p (i) (= 0 (mod i 2)))
-
 (defun select (fn ls)
-  "Create a list LS for which FN returns non-nil."
+  "Create a list from elements of list LS for which FN returns
+non-nil."
   (let ((result nil))
     (dolist (item ls)
       (if (funcall fn item)
@@ -90,10 +107,14 @@ filename or the filename of the optional argument."
     (car candidates)))
 
 (defun rails-root-p (directory)
-  "Returns true if the given directory is the root of a rails project, else false."
-  (let (found)
+  "Returns `t' if the given directory is the root of a rails
+project, else `nil'."
+  (let ((found t))
     (dolist (element '("config/environment.rb" "config/database.yml"))
-      (setq found (and found (file-exists-p (concat (file-name-as-directory directory) element)))))
+      (setq found (and found 
+		       (file-exists-p (concat 
+				       (file-name-as-directory directory) 
+				       element)))))
     found))
 
 (defun ruby-test-runner-sentinel (process event)
@@ -142,7 +163,7 @@ test; or the last run test (if there was one)."
 	(nconc files (list ruby-test-last-run)))
     (setq ruby-test-last-run (car (select 'ruby-any-test-p (select 'identity files))))))
 
-(defun ruby-run-buffer-file-as-test ()
+(defun ruby-test-run-file ()
   "Run buffer's file, first visible window file or last-run as
 ruby test (or spec)."
   (interactive)
@@ -210,12 +231,20 @@ results. Allows to visit source file locations from backtraces."
   (setq mode-name "Ruby-Test")
   (run-hooks 'ruby-test-mode-hook))
 
+(defun ruby-test-expand-executable-path (name)
+  (if (file-name-absolute-p name)
+      name
+    (executable-find name)))
+
 (defun ruby-test-ruby-executable ()
   "Returns the ruby binary to be used."
-  (car (delete-if-not 'file-exists-p ruby-test-ruby-executables)))
+  (car (select 'file-readable-p 
+	       (select 'identity
+		       (mapcar 'ruby-test-expand-executable-path
+			       ruby-test-ruby-executables)))))
 
 (defun ruby-test-spec-executable (test-file)
-  "Returns the spec exectable to be used for the current buffer
+  "Returns the spec executable to be used for the current buffer
 test-file or the given one. If (buffer) test-file is inside of a
 rails project, the project executable is returned, else the first
 existing default executable. If the default executable is
@@ -224,22 +253,14 @@ relative, it is assumed to be somewhere in `PATH'."
   (if (not (buffer-file-name (get-buffer test-file)))
       (error "%s" "Cannot find spec relative to non-file buffer"))
   (let ((executables (copy-sequence ruby-test-spec-executables)))
-    (if (and (rails-root test-file) 
-	     (file-exists-p (rails-root test-file)))
-	(add-to-list 'executables (concat (rails-root test-file) "script/spec")))
-    (setq executables (mapcar (lambda (entry)
-				(if (file-name-absolute-p entry)
-				    entry
-				  (executable-find entry)))
+    (if (rails-root test-file) 
+	(add-to-list 'executables (concat (rails-root test-file) 
+					  "script/spec")))
+    (setq executables (mapcar 'ruby-test-expand-executable-path 
 			      executables))
-    (let ((spec (car (delete-if-not 'file-exists-p executables))))
-      (message "spec: %s" spec)
+    (let ((spec (car (select 'file-readable-p executables))))
+      (message "spec found: %s" spec)
       spec)))
-
-;; global, since these bindings should be visible in other windows
-;; operating on the file named by variable `ruby-test-last-run'.
-(global-set-key (kbd "C-x t") 'ruby-run-buffer-file-as-test)
-(global-set-key (kbd "C-x SPC") 'ruby-run-buffer-file-as-test)
 
 (provide 'ruby-test)
 ;;; ruby-test.el ends here

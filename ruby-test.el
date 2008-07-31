@@ -184,9 +184,13 @@ the font-lock keywords."
     (setq alist (get-text-property (point) 'message))
     (setq file-name (cdr (assoc 'file-name alist)))
     (setq line-number (cdr (assoc 'line-number alist)))
-    (if (equal (window-buffer (selected-window)) ruby-test-buffer)
-	(find-file-other-window file-name)
-      (find-file file-name))
+    (cond
+     ((get-file-buffer file-name)
+      (set-buffer (get-file-buffer file-name)))
+     ((equal (window-buffer (selected-window)) ruby-test-buffer)
+      (find-file-other-window file-name))
+     (t
+      (find-file file-name)))
     (goto-line line-number)))
 
 (setq ruby-test-backtrace-key-map

@@ -35,6 +35,15 @@
 
 ;;; Code:
 
+;; These keybindings are global, since they should be visible in other
+;; windows operating on the file named by variable
+;; `ruby-test-last-run'.
+(global-set-key (kbd "C-x t") 'ruby-test-run-file)
+
+(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
+
+(global-set-key (kbd "C-x C-SPC") 'ruby-test-run-test-at-point)
+
 (defvar ruby-test-buffer-name "*Ruby-Test*")
 
 (defvar ruby-test-mode-hook)
@@ -78,10 +87,8 @@
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
 
-;; global, since these bindings should be visible in other windows
-;; operating on the file named by variable `ruby-test-last-run'.
-(global-set-key (kbd "C-x t") 'ruby-test-run-file)
-(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
+(defvar ruby-test-search-testcase-re 
+  "^[ \t]*def[ \t]+\(test[_a-z0-9]*\)")
 
 (defun ruby-spec-p (filename)
   (and (stringp filename) (string-match "spec\.rb$" filename)))
@@ -163,7 +170,7 @@ project, else `nil'."
    test-file
    output-buffer))
 
-(defun run-test-file (file output-buffer)
+(defun ruby-test-run-test-file (file output-buffer)
   (cond
    ((ruby-spec-p file) (run-spec file output-buffer))
    ((ruby-test-p file) (run-test file output-buffer))
@@ -191,7 +198,23 @@ ruby test (or spec)."
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
   (let ((test-file (find-ruby-test-file)))
     (if test-file
-	(run-test-file test-file ruby-test-buffer)
+	(ruby-test-run-test-file test-file ruby-test-buffer)
+      (message "No test among visible buffers or run earlier."))))
+
+(defun ruby-test-run-test-at-point ()
+  "Run test at point, using the same search strategy as
+`ruby-test-run-file'"
+  (interactive)
+  (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
+  (let ((test-file (find-ruby-test-file)))
+    (let ((test-file-buffer (get-file-buffer test-file)))
+      (if (and test-file 
+	       test-file-buffer)
+	  (save-excursion
+	    (set-buffer test-file-buffer)
+	    (let ((line (line-number-at-pos (point))))
+	      
+	      (ruby-test-run-test test-file ruby-test-buffer))
       (message "No test among visible buffers or run earlier."))))
 
 (defun ruby-test-goto-location ()

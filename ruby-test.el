@@ -4,7 +4,8 @@
 ;; This software can be redistributed. GPL v2 applies.
 
 ;; todo
-;;   - run single test method or spec example
+;;   - run single test method or spec example;
+;;     use test/unit -t/--testcase PATTERN and spec -l/--line LINENUM to do so
 
 ;;; Commentary:
 
@@ -29,6 +30,8 @@
 ;; - 06.06.08, Bugfixes
 ;; - 09.07.08, Fix backtrace rendering
 ;; - 17.07.08, Fix rails support and lookup of unqualified executables
+;; - 31.07.08, Re-use buffer to show error location, if already visible
+;; - 01.08.08, Red and green messages for success and failure
 
 ;;; Code:
 
@@ -39,6 +42,24 @@
 (defvar ruby-test-last-run)
 
 (defvar ruby-test-buffer)
+
+(defvar ruby-test-ok-message
+  (progn
+    (let ((msg "OK"))
+      (put-text-property 0 2 'face '(foreground-color . "green") msg)
+      msg)))
+
+(defvar ruby-test-fail-message
+  (progn
+    (let ((msg "Failed"))
+      (put-text-property 0 6 'face '(foreground-color . "red") msg)
+      msg)))
+
+(defvar ruby-test-fail-message-with-reason
+  (progn
+    (let ((msg "Failed: '%s'"))
+      (put-text-property 0 6 'face '(foreground-color . "red") msg)
+      msg)))
 
 (defvar ruby-test-ruby-executables
   '("/opt/local/bin/ruby" "/usr/bin/ruby" "ruby" "ruby1.9")
@@ -121,11 +142,11 @@ project, else `nil'."
   (save-excursion
     (set-buffer ruby-test-buffer)
     (cond
-     ((string= "finished\n" event) (message "Ok"))
-     ((string= "exited abnormally with code 1\n" event) (message "Failed"))
+     ((string= "finished\n" event) (message ruby-test-ok-message))
+     ((string= "exited abnormally with code 1\n" event) (message ruby-test-fail-message))
      (t (progn
 	  (string-match "\\(.*\\)[^\n]" event)
-	  (message "Failed: '%s'" (match-string 1 event)))))))
+	  (message ruby-test-fail-message-with-reason (match-string 1 event)))))))
 
 (defun run-spec (test-file output-buffer)
   (let ((spec "spec"))
@@ -185,7 +206,7 @@ the font-lock keywords."
     (setq file-name (cdr (assoc 'file-name alist)))
     (setq line-number (cdr (assoc 'line-number alist)))
     (cond
-     ((get-file-buffer file-name)
+     ((get-buffer-window (get-file-buffer file-name))
       (set-buffer (get-file-buffer file-name)))
      ((equal (window-buffer (selected-window)) ruby-test-buffer)
       (find-file-other-window file-name))

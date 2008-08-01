@@ -46,7 +46,7 @@
 (defvar ruby-test-ok-message
   (progn
     (let ((msg "OK"))
-      (put-text-property 0 2 'face '(foreground-color . "green") msg)
+      (put-text-property 0 2 'face '(foreground-color . "dark green") msg)
       msg)))
 
 (defvar ruby-test-fail-message

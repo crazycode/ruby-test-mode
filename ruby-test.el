@@ -4,8 +4,6 @@
 ;; This software can be redistributed. GPL v2 applies.
 
 ;; todo
-;;   - run single test method or spec example;
-;;     use test/unit -t/--testcase PATTERN and spec -l/--line LINENUM to do so
 
 ;;; Commentary:
 
@@ -23,6 +21,9 @@
 ;; checks whether one of the visible buffers is, thirdly it looks if
 ;; there has been a test run before (during this session), in which
 ;; case that test is invoked again.
+;;
+;; Using the command `ruby-test-run-test-at-point', you can run test
+;; cases separately from others in the same file.
 
 ;;; History:
 ;; - 09.02.08, Clickable backtrace added.
@@ -32,6 +33,7 @@
 ;; - 17.07.08, Fix rails support and lookup of unqualified executables
 ;; - 31.07.08, Re-use buffer to show error location, if already visible
 ;; - 01.08.08, Red and green messages for success and failure
+;; - 03.08.08, Run individual test case
 
 ;;; Code:
 
@@ -51,6 +53,8 @@
 (defvar ruby-test-last-run)
 
 (defvar ruby-test-buffer)
+
+(defvar ruby-test-not-found-message "No test among visible buffers or run earlier.")
 
 (defvar ruby-test-ok-message
   (progn
@@ -87,8 +91,8 @@
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
 
-(defvar ruby-test-search-testcase-re 
-  "^[ \t]*def[ \t]+\(test[_a-z0-9]*\)")
+(defvar ruby-test-search-testcase-re
+  "^[ \\t]*def[ \\t]+\\(test[_a-z0-9]*\\)")
 
 (defun ruby-spec-p (filename)
   (and (stringp filename) (string-match "spec\.rb$" filename)))
@@ -111,7 +115,7 @@ non-nil."
 (defalias 'find-all 'select)
 
 (defun invoke-test-file (command-string options category file buffer)
-  (message "Running %s '%s'... (options: '%s')" category file options)
+  (message "Running %s '%s'..." category file)
   (display-buffer buffer)
   (setq ruby-test-last-run file)
   (save-excursion
@@ -120,7 +124,8 @@ non-nil."
     (let ((buffer-read-only nil))
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode nil)
-      (let ((args (append (list command-string) options (list file))))
+      (let ((args (append (list command-string) options)))
+	(message "options: %s" options) ;; todo
 	(let ((proc (apply 'start-process "ruby-test" buffer args)))
 	  (set-process-sentinel proc 'ruby-test-runner-sentinel))))))
 
@@ -157,7 +162,7 @@ project, else `nil'."
 	  (message ruby-test-fail-message-with-reason (match-string 1 event)))))))
 
 (defun ruby-test-run-test-file (file output-buffer &optional line-number)
-  (let (command category options)
+  (let (command category (options (list file)))
     (cond
      ((ruby-spec-p file) 
       (setq command (or (ruby-test-spec-executable test-file) spec))
@@ -168,9 +173,20 @@ project, else `nil'."
       (setq command (or (ruby-test-ruby-executable) "ruby"))
       (setq category "unit test")
       (if line-number
-	  (setq options (cons "--testcase" (cons (ruby-test-find-testcase-re line-number) options)))))
-     (t (error "File is not a known ruby test file")))
+	  (let ((test-case (ruby-test-find-testcase-at file line-number)))
+	    (if test-case
+		(setq options (cons file (list (format "--name=%s" test-case))))
+	      (error "No test case at %s:%s" file line-number)))))
+     (t (message "File is not a known ruby test file")))
     (invoke-test-file command options category file output-buffer)))
+
+(defun ruby-test-find-testcase-at (file line)
+  (save-excursion
+    (set-buffer (get-file-buffer file))
+    (goto-line line)
+    (message "%s:%s" (current-buffer) (point))
+    (if (re-search-backward ruby-test-search-testcase-re nil t)
+	(match-string 1))))
 
 (defun find-ruby-test-file ()
   "Find the test file to run in number of diffeerent ways:
@@ -195,11 +211,11 @@ last-run as ruby test (or spec)."
   (let ((test-file (find-ruby-test-file)))
     (if test-file
 	(ruby-test-run-test-file test-file ruby-test-buffer)
-      (message "No test among visible buffers or run earlier."))))
+      (message ruby-test-not-found-message))))
 
 (defun ruby-test-run-test-at-point ()
-  "Run test at point, using the same search strategy as
-`ruby-test-run-file'"
+  "Run test at point individually, using the same search strategy
+as `ruby-test-run-file'"
   (interactive)
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
   (let ((test-file (find-ruby-test-file)))
@@ -210,7 +226,7 @@ last-run as ruby test (or spec)."
 	    (set-buffer test-file-buffer)
 	    (let ((line (line-number-at-pos (point))))
 	      (ruby-test-run-test-file test-file ruby-test-buffer line)))
-	(message "No test among visible buffers or run earlier.")))))
+	(message ruby-test-not-found-message)))))
 
 (defun ruby-test-goto-location ()
   "This command is not really meant for interactive use, but has

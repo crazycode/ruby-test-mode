@@ -110,8 +110,8 @@ non-nil."
     (reverse result)))
 (defalias 'find-all 'select)
 
-(defun invoke-test-file (command-string category file buffer)
-  (message (format "Running %s '%s'..." category file))
+(defun invoke-test-file (command-string options category file buffer)
+  (message "Running %s '%s'... (options: '%s')" category file options)
   (display-buffer buffer)
   (setq ruby-test-last-run file)
   (save-excursion
@@ -120,8 +120,9 @@ non-nil."
     (let ((buffer-read-only nil))
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode nil)
-      (let ((proc (start-process "ruby-test" buffer command-string  file)))
-	(set-process-sentinel proc 'ruby-test-runner-sentinel)))))
+      (let ((args (append (list command-string) options (list file))))
+	(let ((proc (apply 'start-process "ruby-test" buffer args)))
+	  (set-process-sentinel proc 'ruby-test-runner-sentinel))))))
 
 (defun rails-root (filename)
   "Returns the rails project directory for the current buffer's
@@ -139,7 +140,7 @@ filename or the filename of the optional argument."
 project, else `nil'."
   (let ((found t))
     (dolist (element '("config/environment.rb" "config/database.yml"))
-      (setq found (and found 
+      (setq found (and found
 		       (file-exists-p (concat 
 				       (file-name-as-directory directory) 
 				       element)))))
@@ -155,26 +156,21 @@ project, else `nil'."
 	  (string-match "\\(.*\\)[^\n]" event)
 	  (message ruby-test-fail-message-with-reason (match-string 1 event)))))))
 
-(defun run-spec (test-file output-buffer)
-  (let ((spec "spec"))
-    (invoke-test-file
-     (or (ruby-test-spec-executable test-file) spec)
-     spec
-     test-file
-     output-buffer)))
-
-(defun run-test (test-file output-buffer)
-  (invoke-test-file
-   (or (ruby-test-ruby-executable) "ruby")
-   "unit test"
-   test-file
-   output-buffer))
-
-(defun ruby-test-run-test-file (file output-buffer)
-  (cond
-   ((ruby-spec-p file) (run-spec file output-buffer))
-   ((ruby-test-p file) (run-test file output-buffer))
-   (t (error "File is not a known ruby test file"))))
+(defun ruby-test-run-test-file (file output-buffer &optional line-number)
+  (let (command category options)
+    (cond
+     ((ruby-spec-p file) 
+      (setq command (or (ruby-test-spec-executable test-file) spec))
+      (setq category "spec")
+      (if line-number
+	  (setq options (cons "--line" (cons (format "%d" line-number) options)))))
+     ((ruby-test-p file)
+      (setq command (or (ruby-test-ruby-executable) "ruby"))
+      (setq category "unit test")
+      (if line-number
+	  (setq options (cons "--testcase" (cons (ruby-test-find-testcase-re line-number) options)))))
+     (t (error "File is not a known ruby test file")))
+    (invoke-test-file command options category file output-buffer)))
 
 (defun find-ruby-test-file ()
   "Find the test file to run in number of diffeerent ways:
@@ -192,8 +188,8 @@ test; or the last run test (if there was one)."
     (setq ruby-test-last-run (car (select 'ruby-any-test-p (select 'identity files))))))
 
 (defun ruby-test-run-file ()
-  "Run buffer's file, first visible window file or last-run as
-ruby test (or spec)."
+  "Run buffer's file as test, first visible window file or
+last-run as ruby test (or spec)."
   (interactive)
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
   (let ((test-file (find-ruby-test-file)))
@@ -208,14 +204,13 @@ ruby test (or spec)."
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
   (let ((test-file (find-ruby-test-file)))
     (let ((test-file-buffer (get-file-buffer test-file)))
-      (if (and test-file 
+      (if (and test-file
 	       test-file-buffer)
 	  (save-excursion
 	    (set-buffer test-file-buffer)
 	    (let ((line (line-number-at-pos (point))))
-	      
-	      (ruby-test-run-test test-file ruby-test-buffer))
-      (message "No test among visible buffers or run earlier."))))
+	      (ruby-test-run-test-file test-file ruby-test-buffer line)))
+	(message "No test among visible buffers or run earlier.")))))
 
 (defun ruby-test-goto-location ()
   "This command is not really meant for interactive use, but has

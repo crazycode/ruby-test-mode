@@ -34,17 +34,21 @@
 ;; - 31.07.08, Re-use buffer to show error location, if already visible
 ;; - 01.08.08, Red and green messages for success and failure
 ;; - 03.08.08, Run individual test case
+;; - 03.08.08, Toggle between implementation and specification/unit
+;;             files for rails projects, by Roman Scherer
 
 ;;; Code:
 
-;; These keybindings are global, since they should be visible in other
-;; windows operating on the file named by variable
+;; These key bindings are global, since they should be visible in
+;; other windows operating on the file named by variable
 ;; `ruby-test-last-run'.
 (global-set-key (kbd "C-x t") 'ruby-test-run-file)
 
 (global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
 
 (global-set-key (kbd "C-x C-SPC") 'ruby-test-run-test-at-point)
+
+(global-set-key (kbd "C-c t") 'ruby-test-toggle-implementation-and-specification)
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
 
@@ -319,6 +323,70 @@ relative, it is assumed to be somewhere in `PATH'."
 			      executables))
     (let ((spec (car (select 'file-readable-p executables))))
       spec)))
+
+(defun ruby-test-implementation-p (&optional filename)
+  "Returns `t' if the current buffer's filename or the given
+filename is a Ruby implementation file."
+  (let ((filename (or filename buffer-file-name)))
+    (and (file-readable-p filename)
+         (string-match "\\.rb$" filename)
+         (not (string-match "_spec\\.rb$" filename))
+         (not (string-match "_test\\.rb$" filename)))))
+
+(defun ruby-test-implementation-filename (&optional filename)
+  "Returns the implementation filename for the current buffer's
+filename or the given filename."
+  (let ((filename (or filename (buffer-file-name))))
+    (cond ((not filename)
+           nil)
+          ((string-match "\\(.*\\)\\(spec/\\)\\(controllers\\|helpers\\|models\\|views\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" filename)
+           (replace-match "\\1app/\\3\\4\\5\\7"  nil nil filename nil))
+          ((string-match "\\(.*\\)\\(spec/\\)\\(lib/\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" filename)
+           (replace-match "\\1\\3\\4\\5\\7" nil nil filename nil))
+          ((string-match "\\(.*\\)\\(test/\\)\\(unit/\\)\\(.*\\)\\([^/]*\\)\\(_test\\)\\(\\.rb\\)$" filename)
+           (replace-match "\\1app/models/\\4\\5\\7" nil nil filename nil))
+          ((string-match "\\(.*\\)\\(test/\\)\\(functional/\\)\\(.*\\)\\([^/]*\\)\\(_test\\)\\(\\.rb\\)$" filename)
+           (replace-match "\\1app/controllers/\\4\\5\\7" nil nil filename nil)))))
+
+(defun ruby-test-specification-filename (&optional implementation-filename)
+  "Returns the specification filename for the current buffer's
+filename or the given implementation filename."
+  (let ((implementation-filename (or implementation-filename (buffer-file-name))))
+    (cond ((not implementation-filename)
+           nil)
+          ((string-match "\\(.*\\)\\(app/\\)\\(controllers\\|helpers\\|models\\|views\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
+           (replace-match "\\1spec/\\3\\4_spec\\5\\6" nil nil implementation-filename nil))
+          ((string-match "\\(.*\\)\\(lib\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
+           (replace-match "\\1spec/\\2\\3_spec\\4\\5" nil nil implementation-filename nil)))))
+
+(defun ruby-test-unit-filename (&optional implementation-filename)
+  "Returns the unit test filename for the current buffer's
+filename or the given implementation filename."
+  (let ((implementation-filename (or implementation-filename (buffer-file-name))))
+    (cond ((not implementation-filename)
+           nil)
+          ((string-match "\\(.*\\)\\(app/\\)\\(controllers\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
+           (replace-match "\\1test/functional\\4_test\\5\\6" nil nil implementation-filename nil))
+          ((string-match "\\(.*\\)\\(app/\\)\\(models\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
+           (replace-match "\\1test/unit\\4_test\\5\\6" nil nil implementation-filename nil))
+          ((string-match "\\(.*\\)\\(lib/\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
+           (replace-match "\\1test/unit/\\3\\4_test\\5\\6" nil nil implementation-filename nil)))))
+
+(defun ruby-test-toggle-implementation-and-specification (&optional filename)
+  "Toggle between the implementation and specification/test file
+for the current buffer or the given filename."
+  (interactive)
+  (let ((filename (or filename (buffer-file-name))))
+    (cond ((ruby-test-implementation-p filename)
+           (if (file-exists-p (ruby-test-unit-filename filename))
+               (find-file (ruby-test-unit-filename filename))
+             (find-file (ruby-test-specification-filename filename))))
+          ((or (ruby-spec-p filename) (ruby-test-p filename))
+           (find-file (ruby-test-implementation-filename filename)))
+          (t
+           (put-text-property 0 (length filename) 'face 'bold filename)
+           (message "Sorry, %s is neither a Ruby implementation nor a test file." filename)
+           nil))))
 
 (provide 'ruby-test)
 ;;; ruby-test.el ends here

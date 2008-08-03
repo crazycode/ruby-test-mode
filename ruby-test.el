@@ -4,7 +4,8 @@
 ;; This software can be redistributed. GPL v2 applies.
 
 ;; todo
-;;   - run single test method or spec example
+;;   - run single test method or spec example;
+;;     use test/unit -t/--testcase PATTERN and spec -l/--line LINENUM to do so
 
 ;;; Commentary:
 
@@ -29,8 +30,19 @@
 ;; - 06.06.08, Bugfixes
 ;; - 09.07.08, Fix backtrace rendering
 ;; - 17.07.08, Fix rails support and lookup of unqualified executables
+;; - 31.07.08, Re-use buffer to show error location, if already visible
+;; - 01.08.08, Red and green messages for success and failure
 
 ;;; Code:
+
+;; These keybindings are global, since they should be visible in other
+;; windows operating on the file named by variable
+;; `ruby-test-last-run'.
+(global-set-key (kbd "C-x t") 'ruby-test-run-file)
+
+(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
+
+(global-set-key (kbd "C-x C-SPC") 'ruby-test-run-test-at-point)
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
 
@@ -39,6 +51,24 @@
 (defvar ruby-test-last-run)
 
 (defvar ruby-test-buffer)
+
+(defvar ruby-test-ok-message
+  (progn
+    (let ((msg "OK"))
+      (put-text-property 0 2 'face '(foreground-color . "dark green") msg)
+      msg)))
+
+(defvar ruby-test-fail-message
+  (progn
+    (let ((msg "Failed"))
+      (put-text-property 0 6 'face '(foreground-color . "red") msg)
+      msg)))
+
+(defvar ruby-test-fail-message-with-reason
+  (progn
+    (let ((msg "Failed: '%s'"))
+      (put-text-property 0 6 'face '(foreground-color . "red") msg)
+      msg)))
 
 (defvar ruby-test-ruby-executables
   '("/opt/local/bin/ruby" "/usr/bin/ruby" "ruby" "ruby1.9")
@@ -57,10 +87,8 @@
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
 
-;; global, since these bindings should be visible in other windows
-;; operating on the file named by variable `ruby-test-last-run'.
-(global-set-key (kbd "C-x t") 'ruby-test-run-file)
-(global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
+(defvar ruby-test-search-testcase-re 
+  "^[ \t]*def[ \t]+\(test[_a-z0-9]*\)")
 
 (defun ruby-spec-p (filename)
   (and (stringp filename) (string-match "spec\.rb$" filename)))
@@ -121,11 +149,11 @@ project, else `nil'."
   (save-excursion
     (set-buffer ruby-test-buffer)
     (cond
-     ((string= "finished\n" event) (message "Ok"))
-     ((string= "exited abnormally with code 1\n" event) (message "Failed"))
+     ((string= "finished\n" event) (message ruby-test-ok-message))
+     ((string= "exited abnormally with code 1\n" event) (message ruby-test-fail-message))
      (t (progn
 	  (string-match "\\(.*\\)[^\n]" event)
-	  (message "Failed: '%s'" (match-string 1 event)))))))
+	  (message ruby-test-fail-message-with-reason (match-string 1 event)))))))
 
 (defun run-spec (test-file output-buffer)
   (let ((spec "spec"))
@@ -142,7 +170,7 @@ project, else `nil'."
    test-file
    output-buffer))
 
-(defun run-test-file (file output-buffer)
+(defun ruby-test-run-test-file (file output-buffer)
   (cond
    ((ruby-spec-p file) (run-spec file output-buffer))
    ((ruby-test-p file) (run-test file output-buffer))
@@ -170,7 +198,23 @@ ruby test (or spec)."
   (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
   (let ((test-file (find-ruby-test-file)))
     (if test-file
-	(run-test-file test-file ruby-test-buffer)
+	(ruby-test-run-test-file test-file ruby-test-buffer)
+      (message "No test among visible buffers or run earlier."))))
+
+(defun ruby-test-run-test-at-point ()
+  "Run test at point, using the same search strategy as
+`ruby-test-run-file'"
+  (interactive)
+  (setq ruby-test-buffer (get-buffer-create ruby-test-buffer-name))
+  (let ((test-file (find-ruby-test-file)))
+    (let ((test-file-buffer (get-file-buffer test-file)))
+      (if (and test-file 
+	       test-file-buffer)
+	  (save-excursion
+	    (set-buffer test-file-buffer)
+	    (let ((line (line-number-at-pos (point))))
+	      
+	      (ruby-test-run-test test-file ruby-test-buffer))
       (message "No test among visible buffers or run earlier."))))
 
 (defun ruby-test-goto-location ()
@@ -184,9 +228,13 @@ the font-lock keywords."
     (setq alist (get-text-property (point) 'message))
     (setq file-name (cdr (assoc 'file-name alist)))
     (setq line-number (cdr (assoc 'line-number alist)))
-    (if (equal (window-buffer (selected-window)) ruby-test-buffer)
-	(find-file-other-window file-name)
-      (find-file file-name))
+    (cond
+     ((get-buffer-window (get-file-buffer file-name))
+      (set-buffer (get-file-buffer file-name)))
+     ((equal (window-buffer (selected-window)) ruby-test-buffer)
+      (find-file-other-window file-name))
+     (t
+      (find-file file-name)))
     (goto-line line-number)))
 
 (setq ruby-test-backtrace-key-map

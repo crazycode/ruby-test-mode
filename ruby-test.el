@@ -36,6 +36,7 @@
 ;; - 03.08.08, Run individual test case
 ;; - 03.08.08, Toggle between implementation and specification/unit
 ;;             files for rails projects, by Roman Scherer
+;; - 06.08.08, Bug fix: unbreak goto-location if buffer is visible
 
 ;;; Code:
 

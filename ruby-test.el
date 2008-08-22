@@ -176,10 +176,12 @@ non-nil."
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode nil)
       (let ((args (append (list command-string) options)))
-        (let ((directory (ruby-root file)))
-          (and directory (cd directory)))
-	(let ((proc (apply 'start-process "ruby-test" buffer args)))
-	  (set-process-sentinel proc 'ruby-test-runner-sentinel))))))
+        (let ((directory (ruby-root file))
+	      (previous-directory default-directory))
+          (and directory (cd directory))
+	  (let ((proc (apply 'start-process "ruby-test" buffer args)))
+	    (set-process-sentinel proc 'ruby-test-runner-sentinel))
+	  (and directory (cd previous-directory)))))))
 
 (defun project-root (filename root-predicate)
   "Returns the project root directory for a FILENAME using the
@@ -202,8 +204,8 @@ relative to the given DIRECTORY, else nil."
   (let ((found nil))
     (while (and (not found) (car candidates))
       (setq found 
-            (file-exists-p 
-             (concat (file-name-as-directory directory) (car candidates))))
+	    (file-exists-p 
+	     (concat (file-name-as-directory directory) (car candidates))))
       (setq candidates (cdr candidates)))
     found))
 
@@ -404,9 +406,9 @@ relative, it is assumed to be somewhere in `PATH'."
 filename is a Ruby implementation file."
   (let ((filename (or filename buffer-file-name)))
     (and (file-readable-p filename)
-         (string-match "\\(\\.builder\\)\\|\\(\\.erb\\)\\|\\(\\.haml\\)\\|\\(\\.rb\\)$" filename)
-         (not (string-match "_spec\\.rb$" filename))
-         (not (string-match "_test\\.rb$" filename)))))
+	 (string-match "\\(\\.builder\\)\\|\\(\\.erb\\)\\|\\(\\.haml\\)\\|\\(\\.rb\\)$" filename)
+	 (not (string-match "_spec\\.rb$" filename))
+	 (not (string-match "_test\\.rb$" filename)))))
 
 (defun ruby-test-find-target-filename (filename mapping)
   "Find the target filename by matching FILENAME with the first
@@ -415,15 +417,15 @@ second element."
   (let ((target-filename nil))
     (while (and (not target-filename) mapping)
       (let ((regexp-match (car (car mapping)))
-            (regexp-replace (car (cdr (car mapping)))))
-        (message "regexp-match")
-        (message regexp-match)
-        (message regexp-replace)
-        (message "regexp-replace")
-        (if (string-match regexp-match filename)
-            (setq target-filename (replace-match regexp-replace nil nil filename nil)))
-        (message target-filename)
-        (setq mapping (cdr mapping))))
+	    (regexp-replace (car (cdr (car mapping)))))
+	(message "regexp-match")
+	(message regexp-match)
+	(message regexp-replace)
+	(message "regexp-replace")
+	(if (string-match regexp-match filename)
+	    (setq target-filename (replace-match regexp-replace nil nil filename nil)))
+	(message target-filename)
+	(setq mapping (cdr mapping))))
     target-filename))
 
 ;;; TODO: use macro expansion here?
@@ -451,15 +453,15 @@ for the current buffer or the optional FILENAME."
   (interactive)
   (let ((filename (or filename (buffer-file-name))))
     (cond ((ruby-test-implementation-p filename)
-           (if (and (ruby-test-unit-filename filename) (file-exists-p (ruby-test-unit-filename filename)))
-               (find-file (ruby-test-unit-filename filename))
-             (find-file (ruby-test-specification-filename filename))))
-          ((or (ruby-spec-p filename) (ruby-test-p filename))
-           (find-file (ruby-test-implementation-filename filename)))
-          (t
-           (put-text-property 0 (length filename) 'face 'bold filename)
-           (message "Sorry, %s is neither a Ruby implementation nor a test file." filename)
-           nil))))
+	   (if (and (ruby-test-unit-filename filename) (file-exists-p (ruby-test-unit-filename filename)))
+	       (find-file (ruby-test-unit-filename filename))
+	     (find-file (ruby-test-specification-filename filename))))
+	  ((or (ruby-spec-p filename) (ruby-test-p filename))
+	   (find-file (ruby-test-implementation-filename filename)))
+	  (t
+	   (put-text-property 0 (length filename) 'face 'bold filename)
+	   (message "Sorry, %s is neither a Ruby implementation nor a test file." filename)
+	   nil))))
 
 (provide 'ruby-test)
 ;;; ruby-test.el ends here

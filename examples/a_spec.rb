@@ -1,9 +1,10 @@
+$:.unshift(File.dirname(__FILE__))
 require "failure"
 
 describe "A failing spec" do
 
   it "recurses 5 times and then fails" do
-    lambda { recurse(5) }.should_not raise_error
+    recurse(5)
   end
   
   it "this is a simple failure" do

@@ -37,19 +37,78 @@
 ;; - 03.08.08, Toggle between implementation and specification/unit
 ;;             files for rails projects, by Roman Scherer
 ;; - 06.08.08, Bug fix: unbreak goto-location if buffer is visible
+;; - 21.08.08, Refactoring & Bug fix: Before running test files, emacs 
+;;             changes into the project's root directory, so relative 
+;;             paths are handled correctly. (Roman Scherer)
 
 ;;; Code:
 
 ;; These key bindings are global, since they should be visible in
 ;; other windows operating on the file named by variable
 ;; `ruby-test-last-run'.
+
 (global-set-key (kbd "C-x t") 'ruby-test-run-file)
-
 (global-set-key (kbd "C-x SPC") 'ruby-test-run-file)
-
 (global-set-key (kbd "C-x C-SPC") 'ruby-test-run-test-at-point)
-
 (global-set-key (kbd "C-c t") 'ruby-test-toggle-implementation-and-specification)
+
+;; (global-set-key (kbd "C-c r") 'ruby-test-run-file)
+;; (global-set-key (kbd "C-c t") 'ruby-test-toggle-implementation-and-specification)
+;; (global-set-key (kbd "C-c p") 'ruby-test-run-test-at-point)
+
+(defgroup ruby-test nil
+  "Minor mode providing commands and helpers for Behavioural and Test Driven Development in Ruby."
+  :group 'ruby)
+
+(defcustom ruby-executables
+  '("/opt/local/bin/ruby" "/usr/bin/ruby" "ruby" "ruby1.9")
+  "*A list of ruby executables to use. Non-absolute paths get
+  expanded using `PATH'. The first existing will get picked. Set
+  this variable to use the implementation you intend to test
+  with."
+  :type '(list)
+  :group 'ruby-test)
+
+(defcustom rspec-executables
+  '("/opt/local/bin/spec" "spec" "/usr/bin/spec" "/usr/local/bin/spec")
+  "*A list of spec executables. If the spec does not belong to a
+  rails project, then non-absolute paths get expanded using
+  `PATH'; The first existing will get picked. In a rails project
+  the `script/spec' script will be invoked."
+  :type '(list)
+  :group 'ruby-test)
+
+(defcustom implementation-filename-mapping
+  '(("\\(.*\\)\\(spec/\\)\\(controllers\\|helpers\\|models\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" "\\1app/\\3\\4\\5\\7")
+    ("\\(.*\\)\\(spec/\\)\\(views\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" "\\1app/\\3\\4\\5")
+    ("\\(.*\\)\\(spec/\\)\\(lib/\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" "\\1\\3\\4\\5\\7")
+    ("\\(.*\\)\\(test/\\)\\(unit/\\)\\(.*\\)\\([^/]*\\)\\(_test\\)\\(\\.rb\\)$" "\\1app/models/\\4\\5\\7")
+    ("\\(.*\\)\\(test/\\)\\(functional/\\)\\(.*\\)\\([^/]*\\)\\(_test\\)\\(\\.rb\\)$" "\\1app/controllers/\\4\\5\\7"))
+  "Regular expressions to map Ruby implementation to unit
+filenames). The first element in each list is the match, the
+second the replace expression."
+  :type '(list)
+  :group 'ruby-test)
+
+(defcustom specification-filename-mapping
+  '(("\\(.*\\)\\(app/\\)\\(controllers\\|helpers\\|models\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" "\\1spec/\\3\\4_spec\\5\\6")
+    ("\\(.*\\)\\(app/views\\)\\(.*\\)$" "\\1spec/views\\3\\4_spec\\5\\6.rb")
+    ("\\(.*\\)\\(lib\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" "\\1spec/\\2\\3_spec\\4\\5"))
+  "Regular expressions to map Ruby specification to
+implementation filenames). The first element in each list is the
+match, the second the replace expression."
+  :type '(list)
+  :group 'ruby-test)
+
+(defcustom unit-filename-mapping
+  '(("\\(.*\\)\\(app/\\)\\(controllers\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" "\\1test/functional\\4_test\\5\\6")
+    ("\\(.*\\)\\(app/\\)\\(models\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" "\\1test/unit\\4_test\\5\\6")
+    ("\\(.*\\)\\(lib/\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" "\\1test/unit/\\3\\4_test\\5\\6"))
+  "Regular expressions to map Ruby unit to implementation
+filenames. The first element in each list is the match, the
+second the replace expression."
+  :type '(list)
+  :group 'ruby-test)
 
 (defvar ruby-test-buffer-name "*Ruby-Test*")
 
@@ -78,20 +137,6 @@
     (let ((msg "Failed: '%s'"))
       (put-text-property 0 6 'face '(foreground-color . "red") msg)
       msg)))
-
-(defvar ruby-test-ruby-executables
-  '("/opt/local/bin/ruby" "/usr/bin/ruby" "ruby" "ruby1.9")
-  "*A list of ruby executables to use. Non-absolute paths get
-  expanded using `PATH'. The first existing will get picked. Set
-  this variable to use the implementation you intend to test
-  with.")
-
-(defvar ruby-test-spec-executables
-  '("/opt/local/bin/spec" "spec" "/usr/bin/spec" "/usr/local/bin/spec")
-  "*A list of spec executables. If the spec does not belong to a
-  rails project, then non-absolute paths get expanded using
-  `PATH'; The first existing will get picked. In a rails project
-  the `script/spec' script will be invoked.")
 
 (defvar ruby-test-backtrace-key-map
   "The keymap which is bound to marked trace frames.")
@@ -131,30 +176,58 @@ non-nil."
       (set-auto-mode-0 'ruby-test-mode nil)
       (let ((args (append (list command-string) options)))
 	(message "options: %s" options) ;; todo
+        (let ((directory (ruby-root file)))
+          (and directory (cd directory)))
 	(let ((proc (apply 'start-process "ruby-test" buffer args)))
 	  (set-process-sentinel proc 'ruby-test-runner-sentinel))))))
 
+(defun project-root (filename root-predicate)
+  "Returns the project root directory for a FILENAME using the
+given ROOT-PREDICATE, else nil. The function returns a directory
+if any of the directories in FILENAME is tested to t by
+evaluating the ROOT-PREDICATE."
+  (if (funcall root-predicate filename)
+      filename
+    (and 
+     filename 
+     (not (string= "/" filename))
+     (project-root 
+      (file-name-directory 
+       (directory-file-name (file-name-directory filename)))
+      root-predicate))))
+        
+(defun project-root-p (directory candidates)
+  "Returns t if one of the filenames in CANDIDATES is existing
+relative to the given DIRECTORY, else nil."
+  (let ((found nil))
+    (while (and (not found) (car candidates))
+      (setq found 
+            (file-exists-p 
+             (concat (file-name-as-directory directory) (car candidates))))
+      (setq candidates (cdr candidates)))
+    found))
+
 (defun rails-root (filename)
-  "Returns the rails project directory for the current buffer's
-filename or the filename of the optional argument."
-  (interactive "f")
-  (let (candidates (directory ""))
-    (dolist (element (split-string filename "/"))
-      (setq directory (file-name-as-directory (concat directory element "/")))
-      (if (and (file-exists-p directory) (rails-root-p directory))
-	  (add-to-list 'candidates directory)))
-    (car candidates)))
+  "Returns the Ruby on Rails project directory for the given
+FILENAME, else nil."
+  (project-root filename 'rails-root-p))
 
 (defun rails-root-p (directory)
-  "Returns `t' if the given directory is the root of a rails
-project, else `nil'."
-  (let ((found t))
-    (dolist (element '("config/environment.rb" "config/database.yml"))
-      (setq found (and found
-		       (file-exists-p (concat 
-				       (file-name-as-directory directory) 
-				       element)))))
-    found))
+  "Returns t if the given DIRECTORY is the root of a Ruby on
+Rails project, else nil."
+  (and (ruby-root-p directory)
+       (project-root-p directory
+       '("config/environment.rb" "config/database.yml"))))
+
+(defun ruby-root (filename)
+  "Returns the Ruby project directory for the given FILENAME,
+else nil."
+  (project-root filename 'ruby-root-p))
+
+(defun ruby-root-p (directory)
+  "Returns t if the given DIRECTORY is the root of a Ruby
+project, else nil."
+  (project-root-p directory '("Rakefile")))
 
 (defun ruby-test-runner-sentinel (process event)
   (save-excursion
@@ -263,6 +336,7 @@ the font-lock keywords."
 (define-key ruby-test-mode-map "\r" 'ruby-test-goto-location)
 (define-key ruby-test-mode-map [mouse-2] 'ruby-test-goto-location)
 
+
 (defvar ruby-test-font-lock-keywords
   (list
    '("^[[:space:]]*\\[?\\(\\([[:graph:]]*\\):\\([[:digit:]]+\\)\\):" 1 ; test/unit backtrace
@@ -305,7 +379,7 @@ results. Allows to visit source file locations from backtraces."
   (car (select 'file-readable-p 
 	       (select 'identity
 		       (mapcar 'ruby-test-expand-executable-path
-			       ruby-test-ruby-executables)))))
+			       ruby-executables)))))
 
 (defun ruby-test-spec-executable (test-file)
   "Returns the spec executable to be used for the current buffer
@@ -316,7 +390,7 @@ relative, it is assumed to be somewhere in `PATH'."
   (interactive "b")
   (if (not (buffer-file-name (get-buffer test-file)))
       (error "%s" "Cannot find spec relative to non-file buffer"))
-  (let ((executables (copy-sequence ruby-test-spec-executables)))
+  (let ((executables (copy-sequence rspec-executables)))
     (if (rails-root test-file) 
 	(add-to-list 'executables (concat (rails-root test-file) 
 					  "script/spec")))
@@ -326,60 +400,58 @@ relative, it is assumed to be somewhere in `PATH'."
       spec)))
 
 (defun ruby-test-implementation-p (&optional filename)
-  "Returns `t' if the current buffer's filename or the given
+  "Returns t if the current buffer's filename or the given
 filename is a Ruby implementation file."
   (let ((filename (or filename buffer-file-name)))
     (and (file-readable-p filename)
-         (string-match "\\.rb$" filename)
+         (string-match "\\(\\.builder\\)\\|\\(\\.erb\\)\\|\\(\\.haml\\)\\|\\(\\.rb\\)$" filename)
          (not (string-match "_spec\\.rb$" filename))
          (not (string-match "_test\\.rb$" filename)))))
 
+(defun ruby-test-find-target-filename (filename mapping)
+  "Find the target filename by matching FILENAME with the first
+element of each list in mapping, and replacing the match with the
+second element."
+  (let ((target-filename nil))
+    (while (and (not target-filename) mapping)
+      (let ((regexp-match (car (car mapping)))
+            (regexp-replace (car (cdr (car mapping)))))
+        (message "regexp-match")
+        (message regexp-match)
+        (message regexp-replace)
+        (message "regexp-replace")
+        (if (string-match regexp-match filename)
+            (setq target-filename (replace-match regexp-replace nil nil filename nil)))
+        (message target-filename)
+        (setq mapping (cdr mapping))))
+      target-filename))
+
+;;; TODO: use macro expansion here?
 (defun ruby-test-implementation-filename (&optional filename)
   "Returns the implementation filename for the current buffer's
-filename or the given filename."
+filename or the optional FILENAME, else nil."
   (let ((filename (or filename (buffer-file-name))))
-    (cond ((not filename)
-           nil)
-          ((string-match "\\(.*\\)\\(spec/\\)\\(controllers\\|helpers\\|models\\|views\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" filename)
-           (replace-match "\\1app/\\3\\4\\5\\7"  nil nil filename nil))
-          ((string-match "\\(.*\\)\\(spec/\\)\\(lib/\\)\\(.*\\)\\([^/]*\\)\\(_spec\\)\\(\\.rb\\)$" filename)
-           (replace-match "\\1\\3\\4\\5\\7" nil nil filename nil))
-          ((string-match "\\(.*\\)\\(test/\\)\\(unit/\\)\\(.*\\)\\([^/]*\\)\\(_test\\)\\(\\.rb\\)$" filename)
-           (replace-match "\\1app/models/\\4\\5\\7" nil nil filename nil))
-          ((string-match "\\(.*\\)\\(test/\\)\\(functional/\\)\\(.*\\)\\([^/]*\\)\\(_test\\)\\(\\.rb\\)$" filename)
-           (replace-match "\\1app/controllers/\\4\\5\\7" nil nil filename nil)))))
+    (ruby-test-find-target-filename filename implementation-filename-mapping)))
 
-(defun ruby-test-specification-filename (&optional implementation-filename)
+(defun ruby-test-specification-filename (&optional filename)
   "Returns the specification filename for the current buffer's
-filename or the given implementation filename."
-  (let ((implementation-filename (or implementation-filename (buffer-file-name))))
-    (cond ((not implementation-filename)
-           nil)
-          ((string-match "\\(.*\\)\\(app/\\)\\(controllers\\|helpers\\|models\\|views\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
-           (replace-match "\\1spec/\\3\\4_spec\\5\\6" nil nil implementation-filename nil))
-          ((string-match "\\(.*\\)\\(lib\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
-           (replace-match "\\1spec/\\2\\3_spec\\4\\5" nil nil implementation-filename nil)))))
+filename or the optional FILENAME, else nil."
+  (let ((filename (or filename (buffer-file-name))))
+    (ruby-test-find-target-filename filename specification-filename-mapping)))
 
-(defun ruby-test-unit-filename (&optional implementation-filename)
-  "Returns the unit test filename for the current buffer's
-filename or the given implementation filename."
-  (let ((implementation-filename (or implementation-filename (buffer-file-name))))
-    (cond ((not implementation-filename)
-           nil)
-          ((string-match "\\(.*\\)\\(app/\\)\\(controllers\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
-           (replace-match "\\1test/functional\\4_test\\5\\6" nil nil implementation-filename nil))
-          ((string-match "\\(.*\\)\\(app/\\)\\(models\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
-           (replace-match "\\1test/unit\\4_test\\5\\6" nil nil implementation-filename nil))
-          ((string-match "\\(.*\\)\\(lib/\\)\\(.*\\)\\([^/]*\\)\\(\\.rb\\)$" implementation-filename)
-           (replace-match "\\1test/unit/\\3\\4_test\\5\\6" nil nil implementation-filename nil)))))
+(defun ruby-test-unit-filename (&optional filename)
+  "Returns the unit filename for the current buffer's filename or
+the optional FILENAME, else nil."
+  (let ((filename (or filename (buffer-file-name))))
+    (ruby-test-find-target-filename filename specification-filename-mapping)))
 
 (defun ruby-test-toggle-implementation-and-specification (&optional filename)
   "Toggle between the implementation and specification/test file
-for the current buffer or the given filename."
+for the current buffer or the optional FILENAME."
   (interactive)
   (let ((filename (or filename (buffer-file-name))))
     (cond ((ruby-test-implementation-p filename)
-           (if (file-exists-p (ruby-test-unit-filename filename))
+           (if (and (ruby-test-unit-filename filename) (file-exists-p (ruby-test-unit-filename filename)))
                (find-file (ruby-test-unit-filename filename))
              (find-file (ruby-test-specification-filename filename))))
           ((or (ruby-spec-p filename) (ruby-test-p filename))

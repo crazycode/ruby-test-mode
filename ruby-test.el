@@ -176,7 +176,6 @@ non-nil."
       (erase-buffer)
       (set-auto-mode-0 'ruby-test-mode nil)
       (let ((args (append (list command-string) options)))
-	(message "options: %s" options) ;; todo
         (let ((directory (ruby-root file)))
           (and directory (cd directory)))
 	(let ((proc (apply 'start-process "ruby-test" buffer args)))
@@ -218,7 +217,7 @@ FILENAME, else nil."
 Rails project, else nil."
   (and (ruby-root-p directory)
        (project-root-p directory
-       '("config/environment.rb" "config/database.yml"))))
+		       '("config/environment.rb" "config/database.yml"))))
 
 (defun ruby-root (filename)
   "Returns the Ruby project directory for the given FILENAME,
@@ -425,7 +424,7 @@ second element."
             (setq target-filename (replace-match regexp-replace nil nil filename nil)))
         (message target-filename)
         (setq mapping (cdr mapping))))
-      target-filename))
+    target-filename))
 
 ;;; TODO: use macro expansion here?
 (defun ruby-test-implementation-filename (&optional filename)

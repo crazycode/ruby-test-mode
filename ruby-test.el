@@ -42,6 +42,7 @@
 ;;             paths are handled correctly. (Roman Scherer)
 
 ;;; Code:
+;;; (Repository access: git://florianebeling.com/git/ruby-test-mode)
 
 ;; These key bindings are global, since they should be visible in
 ;; other windows operating on the file named by variable

@@ -2,9 +2,8 @@ $:.unshift(File.dirname(__FILE__))
 require "failure"
 
 describe "A failing spec" do
-
   it "recurses 5 times and then fails" do
-    recurse(5)
+    recurse(5) # intentionally provoke a backtrace
   end
   
   it "this is a simple failure" do

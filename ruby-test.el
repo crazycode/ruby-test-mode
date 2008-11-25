@@ -269,9 +269,10 @@ project, else nil."
 	(match-string 1))))
 
 (defun find-ruby-test-file ()
-  "Find the test file to run in number of diffeerent ways:
-current buffer (if that's a test; another open buffer which is a
-test; or the last run test (if there was one)."
+  "Find the test file to run in number of different ways: look
+at current buffer. First, use that, if it is a test, second,
+another open buffer which is a test, or third, the last run
+test (in this session). Otherwise `nil'."
   (let ((files))
     (if (buffer-file-name)
 	(setq files (cons (buffer-file-name) files)))
@@ -390,7 +391,7 @@ rails project, the project executable is returned, else the first
 existing default executable. If the default executable is
 relative, it is assumed to be somewhere in `PATH'."
   (interactive "b")
-  (if (not (buffer-file-name (get-buffer test-file)))
+  (if (not (get-file-buffer test-file))
       (error "%s" "Cannot find spec relative to non-file buffer"))
   (let ((executables (copy-sequence rspec-executables)))
     (if (rails-root test-file) 

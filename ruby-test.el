@@ -40,6 +40,8 @@
 ;; - 21.08.08, Refactoring & Bug fix: Before running test files, emacs 
 ;;             changes into the project's root directory, so relative 
 ;;             paths are handled correctly. (Roman Scherer)
+;; - 25.11.08, Bugfix: run spec from non-test file; and: jump to location
+;;             in non-open file.
 
 ;;; Code:
 ;;; (Repository access: git://github.com/febeling/ruby-test-mode.git)

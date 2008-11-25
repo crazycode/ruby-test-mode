@@ -321,7 +321,7 @@ the font-lock keywords."
     (setq file-name (cdr (assoc 'file-name alist)))
     (setq line-number (cdr (assoc 'line-number alist)))
     (cond
-     ((get-buffer-window (get-file-buffer file-name))
+     ((and (get-file-buffer file-name) (get-buffer-window (get-file-buffer file-name)))
       (pop-to-buffer (get-file-buffer file-name)))
      ((equal (window-buffer (selected-window)) ruby-test-buffer)
       (find-file-other-window file-name))

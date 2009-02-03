@@ -3,7 +3,17 @@
 ;; Caspar Florian Ebeling <florian.ebeling@gmail.com>, 2007-12-06
 ;; This software can be redistributed. GPL v2 applies.
 
-;; todo
+;;; Todo:
+;; - Bug: 'killed' process exit status string not displayed completely.
+;;
+;; - Add a minor mode which registered the main commands; does not
+;;   solve everything, though, because tests are supposed to be
+;;   executable from everywhere.
+;;
+;; - Maybe make more generic; make usable for Erlang eunit tests, e.g.
+;;
+;; - Add a command to kill the test process
+
 
 ;;; Commentary:
 

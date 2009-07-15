@@ -1,7 +1,6 @@
 def recurse(i)
-  n = i - 1
-  if n > 0
-    reflect(n)
+  if i > 0
+    reflect(i-1)
   else
     raise(StandardError.new("Intentionally unwind"))
   end

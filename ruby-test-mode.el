@@ -1,11 +1,15 @@
-;;; ruby-test.el --- An Emacs minor mode for Behavioural and Test
-;;; Driven Development in Ruby.
+;;; ruby-test-mode.el --- Minor mode for Behaviour and Test Driven
+;;; Development in Ruby.
 
-;; Authors:
-;;
-;; Caspar Florian Ebeling <florian.ebeling@gmail.com>
-;; Roman Scherer <roman.scherer@gmx.de>
-;;
+;; Copyright (C) 2009 Roman Scherer, Caspar Florian Ebeling
+
+;; Author: Roman Scherer <roman.scherer@gmx.de>
+;;         Caspar Florian Ebeling <florian.ebeling@gmail.com>
+;; Maintainer: Roman Scherer <roman.scherer@gmx.de>
+;; Created: 09.02.08
+;; Version: 1.0
+;; Keywords: ruby unit test rspec
+
 ;; This software can be redistributed. GPL v2 applies.
 
 ;; This mode provides commands for running ruby tests. The output is
@@ -85,7 +89,7 @@ Test Driven Development in Ruby."
   :group 'ruby-test)
 
 (defcustom ruby-test-file-name-extensions
-  '("builder" "erb" "haml" "rb" "rjs)
+  '("builder" "erb" "haml" "rb" "rjs")
   "*A list of filename extensions that trigger the loading of the
 minor mode."
   :type '(list)
@@ -131,6 +135,7 @@ second the replace expression."
   :type '(list)
   :group 'ruby-test)
 
+;;;###autoload
 (define-minor-mode ruby-test-mode
   "Toggle Ruby-Test minor mode.
 With no argument, this command toggles the mode. Non-null prefix
@@ -384,3 +389,5 @@ the optional FILENAME, else nil."
 
 (add-hook 'find-file-hooks 'ruby-test-find-file-hook)
 (provide 'ruby-test-mode)
+
+;;; ruby-test-mode.el ends here

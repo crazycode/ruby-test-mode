@@ -195,7 +195,7 @@ non-nil."
 	    (set-process-sentinel proc 'ruby-test-runner-sentinel))
 	  (and directory (cd previous-directory)))))))
 
-(defun project-root (filename root-predicate)
+(defun ruby-project-root (filename root-predicate)
   "Returns the project root directory for a FILENAME using the
 given ROOT-PREDICATE, else nil. The function returns a directory
 if any of the directories in FILENAME is tested to t by
@@ -205,12 +205,12 @@ evaluating the ROOT-PREDICATE."
     (and 
      filename 
      (not (string= "/" filename))
-     (project-root 
+     (ruby-project-root 
       (file-name-directory 
        (directory-file-name (file-name-directory filename)))
       root-predicate))))
         
-(defun project-root-p (directory candidates)
+(defun ruby-project-root-p (directory candidates)
   "Returns t if one of the filenames in CANDIDATES is existing
 relative to the given DIRECTORY, else nil."
   (let ((found nil))
@@ -224,24 +224,24 @@ relative to the given DIRECTORY, else nil."
 (defun rails-root (filename)
   "Returns the Ruby on Rails project directory for the given
 FILENAME, else nil."
-  (project-root filename 'rails-root-p))
+  (ruby-project-root filename 'rails-root-p))
 
 (defun rails-root-p (directory)
   "Returns t if the given DIRECTORY is the root of a Ruby on
 Rails project, else nil."
   (and (ruby-root-p directory)
-       (project-root-p directory
+       (ruby-project-root-p directory
 		       '("config/environment.rb" "config/database.yml"))))
 
 (defun ruby-root (filename)
   "Returns the Ruby project directory for the given FILENAME,
 else nil."
-  (project-root filename 'ruby-root-p))
+  (ruby-project-root filename 'ruby-root-p))
 
 (defun ruby-root-p (directory)
   "Returns t if the given DIRECTORY is the root of a Ruby
 project, else nil."
-  (project-root-p directory '("Rakefile")))
+  (ruby-project-root-p directory '("Rakefile")))
 
 (defun ruby-test-runner-sentinel (process event)
   (save-excursion

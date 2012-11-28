@@ -5,10 +5,12 @@
 
 ;; Author: Roman Scherer <roman.scherer@gmx.de>
 ;;         Caspar Florian Ebeling <florian.ebeling@gmail.com>
-;; Maintainer: Roman Scherer <roman.scherer@gmx.de>
+;;
+;; Maintainer: Roman Scherer <roman.scherer@burningswell.com>
 ;; Created: 09.02.08
-;; Version: 1.1
+;; Version: 1.5
 ;; Keywords: ruby unit test rspec
+;; Package-Requires: ((ruby-mode "1.0"))
 
 ;; This software can be redistributed. GPL v2 applies.
 
@@ -32,30 +34,15 @@
 
 ;; Keybindings:
 ;;
-;; C-c C-c . - Runs the current buffer's file as an unit test or an
+;; C-c C-,   - Runs the current buffer's file as an unit test or an
 ;;             rspec example.
 ;;
-;; C-c C-c , - Runs the unit test or rspec example at the current buffer's
+;; C-c M-,   - Runs the unit test or rspec example at the current buffer's
 ;;             buffer's point.
 ;;
-;; C-c t - Toggle between implementation and test/example files.
+;; C-c C-s   - Toggle between implementation and test/example files.
 
-;; History:
-;;
-;; - 09.02.08, Clickable backtrace added.
-;; - 02.03.08, Rails support, by Roman Scherer
-;; - 06.06.08, Bugfixes
-;; - 09.07.08, Fix backtrace rendering
-;; - 17.07.08, Fix rails support and lookup of unqualified executables
-;; - 31.07.08, Re-use buffer to show error location, if already visible
-;; - 01.08.08, Red and green messages for success and failure
-;; - 03.08.08, Run individual test case
-;; - 03.08.08, Toggle between implementation and specification/unit
-;;             files for rails projects, by Roman Scherer
-;; - 06.08.08, Bug fix: unbreak goto-location if buffer is visible
-;; - 21.08.08, Refactoring & Bug fix: Before running test files, emacs
-;;             changes into the project's root directory, so relative
-;;             paths are handled correctly. (Roman Scherer)
+(require 'ruby-mode)
 
 (defgroup ruby-test nil
   "Minor mode providing commands and helpers for Behavioural and
@@ -68,9 +55,9 @@ Test Driven Development in Ruby."
 
 (defvar ruby-test-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-c .") 'ruby-test-run)
-    (define-key map (kbd "C-c C-c ,") 'ruby-test-run-at-point)
-    (define-key map (kbd "C-c t") 'ruby-test-toggle-implementation-and-specification)
+    (define-key map (kbd "C-c C-,") 'ruby-test-run)
+    (define-key map (kbd "C-c M-,") 'ruby-test-run-at-point)
+    (define-key map (kbd "C-c C-s") 'ruby-test-toggle-implementation-and-specification)
     map)
   "The keymap used in `ruby-test-mode' buffers.")
 
@@ -80,15 +67,6 @@ Test Driven Development in Ruby."
   expanded using `PATH'. The first existing will get picked. Set
   this variable to use the implementation you intend to test
   with."
-  :type '(list)
-  :group 'ruby-test)
-
-(defcustom ruby-test-rspec-executables
-  '("/opt/local/bin/spec" "spec" "/usr/bin/spec" "/usr/local/bin/spec")
-  "*A list of spec executables. If the spec does not belong to a
-  rails project, then non-absolute paths get expanded using
-  `PATH'; The first existing will get picked. In a rails project
-  the `script/spec' script will be invoked."
   :type '(list)
   :group 'ruby-test)
 
@@ -200,11 +178,6 @@ test; or the last run test (if there was one)."
         (nconc files (list ruby-test-last-run)))
     (setq ruby-test-last-run (car (select 'ruby-test-any-p (select 'identity files))))))
 
-(defun ruby-test-find-file-hook ()
-  "Enable ruby-test-mode if the current buffer's filename
-extension matches one of the minor mode's filename extensions."
-  (when (ruby-test-file-name-extension-p) (ruby-test-mode 't)))
-
 (defun ruby-test-find-target-filename (filename mapping)
   "Find the target filename by matching FILENAME with the first
 element of each list in mapping, and replacing the match with the
@@ -305,7 +278,7 @@ depending on the filename."
 
 (defun ruby-test-spec-command (filename &optional line-number)
   (let (command options)
-    (setq command (or (ruby-test-rspec-executable filename) spec))
+    (setq command "bundle exec rspec")
     (setq options (cons "-b" options))
     (if line-number
         (setq options (cons "--line" (cons (format "%d" line-number) options))))
@@ -373,24 +346,6 @@ gem, else nil."
   (and (ruby-test-ruby-root-p directory)
        (> (length (directory-files directory nil ".gemspec")) 0)))
 
-(defun ruby-test-rspec-executable (test-file)
-  "Returns the spec executable to be used for the current buffer
-test-file or the given one. If (buffer) test-file is inside of a
-rails project, the project executable is returned, else the first
-existing default executable. If the default executable is
-relative, it is assumed to be somewhere in `PATH'."
-  (interactive "b")
-  (if (not (buffer-file-name (get-buffer test-file)))
-      (error "%s" "Cannot find spec relative to non-file buffer"))
-  (let ((executables (copy-sequence ruby-test-rspec-executables)))
-    (if (ruby-test-rails-root test-file)
-        (add-to-list 'executables (concat (ruby-test-rails-root test-file)
-                                          "script/spec")))
-    (setq executables (mapcar 'ruby-test-expand-executable-path
-                              executables))
-    (let ((spec (car (select 'file-readable-p executables))))
-      spec)))
-
 (defun ruby-test-ruby-executable ()
   "Returns the ruby binary to be used."
   (car (select 'file-readable-p
@@ -452,7 +407,12 @@ the optional FILENAME, else nil."
          (ruby-test-specification-filename filename))
         (t nil)))
 
-(add-hook 'find-file-hooks 'ruby-test-find-file-hook)
+(defun ruby-test-enable ()
+  "Enable the ruby-test-mode."
+  (ruby-test-mode t))
+
+(add-hook 'ruby-mode-hook 'ruby-test-enable)
+
 (provide 'ruby-test-mode)
 
 ;;; ruby-test-mode.el ends here
